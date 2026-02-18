@@ -1,63 +1,135 @@
 import {
   IsArray,
+  IsDate,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
 } from 'class-validator';
 
+
+export enum OrderStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+}
+
+export enum OrderType {
+  MINORISTA = 'minorista',
+  MAYORISTA = 'mayorista',
+}
+
+export enum PaymentMethod {
+  MERCADO_PAGO = 'mercado_pago',
+  TRANSFERENCIA = 'transferencia',
+  EFECTIVO = 'efectivo',
+}
+
 export class OrderDto {
-  @IsOptional()
-  @IsNumber()
-  status?: number;
+  @IsNotEmpty()
+  @IsEnum(OrderStatus)
+  status: OrderStatus;
 
   @IsNotEmpty()
   @IsNumber()
-  total?: number;
+  total: number;
+
+  @IsOptional()
+  @IsNumber()
+  subTotal: number;
+
+  @IsOptional()
+  @IsNumber()
+  shippingPrice: number;
+
+  @IsOptional()
+  @IsString()
+  notes: string;
+
+  @IsOptional()
+  @IsString()
+  notesOwn: string;
+
+  @IsNotEmpty()
+  @IsEnum(PaymentMethod)
+  paymentMethod: PaymentMethod;
+
+  @IsNotEmpty()
+  @IsEnum(OrderType)
+  orderType: OrderType;
+
+  @IsOptional()
+  @IsString()
+  punto_de_venta: string;
+
+  @IsOptional()
+  @IsString()
+  puntoEnvio: string;
+
+  @IsNotEmpty()
+  @IsObject()
+  address: {
+    address: string;
+    city: string;
+    phone: string;
+    betweenStreets?: string;
+    floorNumber?: string;
+    departmentNumber?: string;
+  };
+
+  @IsNotEmpty()
+  @IsObject()
+  user: {
+    name: string;
+    lastName: string;
+    email?: string;
+  };
 
   @IsNotEmpty()
   @IsArray()
   items: {
-    productId: string;
+    id: string;
+    name: string;
+    description?: string;
+    images?: string[];
     options: {
-      id: string;
+      name: string;
+      price: number;
       quantity: number;
     }[];
+    price: number;
+    salesCount?: number;
+    discountApllied?: number;
   }[];
 
   @IsNotEmpty()
-  @IsNumber()
-  subTotal?: number;
+  @IsObject()
+  deliveryArea: {
+    _id?: string;
+    description: string;
+    coordinates: number[][];
+    schedule: string;
+    orderCutOffHour: number;
+    enabled: boolean;
+    sameDayDelivery: boolean;
+    sameDayDeliveryDays: string[];
+    whatsappNumber?: string;
+    sheetName?: string;
+  };
 
   @IsOptional()
-  @IsNumber()
-  shippingPrice?: number = 0;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @IsNotEmpty()
-  @IsString()
-  addressId: string;
+  @IsObject()
+  coupon: {
+    code: string;
+    discount: number;
+    type: string;
+  };
 
   @IsNotEmpty()
-  @IsString()
-  userId: string;
+  @IsDate()
+  deliveryDay: Date;
 
-  @IsNotEmpty()
-  @IsNumber()
-  paymentMethod: number;
-
-  @IsOptional()
-  @IsString()
-  coupon: string | null;
-
-  @IsOptional()
-  @IsString()
-  deliveryAreaId: string;
-
-  @IsNotEmpty()
-  @IsString()
-  deliveryDate: string;
 }

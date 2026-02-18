@@ -13,19 +13,12 @@ import { OptionsModule } from '../../modules/options/options.module';
 import { OrdersModule } from '../../modules/orders/orders.module';
 import { ProductsModule } from '../../modules/products/products.module';
 import { UsersModule } from '../../modules/users/users.module';
-import { MercadoPagoModule } from '../mercado-pago/mercado-pago.module';
-import { PaywayModule } from '../payway/payway.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CouponsModule } from '../../modules/coupons/coupons.module';
-import { AnnouncementsModule } from '../announcements/announcements.module';
-import { ImagesModule } from '../images/images.module';
 import ENV from '../../config/env';
-import { GoogleSheetModule } from '../google-sheet/google-sheet.module';
-import { MetaConversionsModule } from '../meta-conversions/meta-conversions.module';
 import { SalesPointsModule } from '../sales-points/sales-points.module';
 import { DiscountsModule } from '../discounts/discounts.module';
-import { BankInfoModule } from '../bank-info/bank-info.module';
 
 @Module({
   imports: [
@@ -57,16 +50,9 @@ import { BankInfoModule } from '../bank-info/bank-info.module';
     DeliveryAreasModule,
     OrdersModule,
     OptionsModule,
-    MercadoPagoModule,
-    PaywayModule,
     CouponsModule,
-    AnnouncementsModule,
-    ImagesModule,
-    GoogleSheetModule,
-    MetaConversionsModule,
     SalesPointsModule,
     DiscountsModule,
-    BankInfoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

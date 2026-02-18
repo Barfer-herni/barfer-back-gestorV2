@@ -4,7 +4,6 @@ import { Document } from 'mongoose';
 
 @Schema()
 export class PuntosVenta extends Document {
-
     @Prop({ required: true })
     nombre: string;
 
