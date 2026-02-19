@@ -29,7 +29,6 @@ import { UsersService } from '../users/users.service';
 export class MayoristasService {
     constructor(
         @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
-        @InjectModel(PuntoEnvio.name) private readonly puntoEnvioModel: Model<PuntoEnvio>,
         @Inject(CACHE_MANAGER) private cacheManager: Cache,
         private readonly usersService: UsersService,
         private readonly productsService: ProductsService,
@@ -39,6 +38,8 @@ export class MayoristasService {
         private readonly optionsService: OptionsService,
         private readonly couponService: CouponsService,
     ) { }
+
+
 
 
 
