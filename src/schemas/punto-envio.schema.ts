@@ -3,8 +3,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 
-@Schema()
-export class PuntoEnvio extends Document {
+@Schema({
+    timestamps: true,
+})
+export class PuntoEnvio {
+    _id: string;
 
     @Prop({ required: true })
     nombre: string;
@@ -16,7 +19,7 @@ export class PuntoEnvio extends Document {
     createdAt: string;
 
     @Prop({ required: true })
-    updateAt: string;
+    updatedAt: string;
 
 }
 

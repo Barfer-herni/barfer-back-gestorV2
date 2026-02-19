@@ -29,13 +29,13 @@ import { OrderDto } from './dto/order.dto';
 import { UpdateOrderDto } from './dto/update.dto';
 import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems } from './orders.helpers';
 import { MayoristasService } from '../mayoristas/mayoristas.service';
+import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
-    @InjectModel(PuntoEnvio.name) private readonly puntoEnvioModel: Model<PuntoEnvio>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
@@ -45,6 +45,7 @@ export class OrdersService {
     private readonly optionsService: OptionsService,
     private readonly couponService: CouponsService,
     private readonly mayoristasService: MayoristasService,
+    private readonly puntoEnvioService: PuntoEnvioService,
   ) { }
 
 
@@ -58,7 +59,7 @@ export class OrdersService {
 
         // Ajustar fecha según horario de corte (solo para envíos express con punto definido)
         if (validatedData.puntoEnvio) {
-          validatedData.deliveryDay = await this.adjustDeliveryDateByCutoff(validatedData.deliveryDay, validatedData.puntoEnvio);
+          validatedData.deliveryDay = await this.puntoEnvioService.adjustDeliveryDateByCutoff(validatedData.deliveryDay, validatedData.puntoEnvio);
         }
       }
 
@@ -172,64 +173,6 @@ export class OrdersService {
         throw error;
       }
       throw new InternalServerErrorException('Error updating order');
-    }
-  }
-
-
-
-
-
-  //pasaje a punto de envio
-  private async adjustDeliveryDateByCutoff(deliveryDate: Date, puntoEnvioName?: string): Promise<Date> {
-    if (!puntoEnvioName) return deliveryDate;
-    try {
-      const puntoEnvio = await this.puntoEnvioModel.findOne({ nombre: puntoEnvioName }).exec();
-
-      if (!puntoEnvio || !puntoEnvio.cutoffTime) return deliveryDate;
-
-      const cutoffTime = puntoEnvio.cutoffTime; // Format: "HH:mm"
-      const [cutoffHour, cutoffMinute] = cutoffTime.split(':').map(Number);
-
-      const now = new Date();
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/Argentina/Buenos_Aires',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false
-      });
-
-      const parts = formatter.formatToParts(now);
-      const hourPart = parts.find(p => p.type === 'hour')?.value;
-      const minutePart = parts.find(p => p.type === 'minute')?.value;
-
-      if (!hourPart || !minutePart) return deliveryDate;
-
-      const currentHour = parseInt(hourPart);
-      const currentMinute = parseInt(minutePart);
-
-      const isAfterCutoff = currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= cutoffMinute);
-
-      if (isAfterCutoff) {
-        const todayArg = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-        todayArg.setHours(0, 0, 0, 0);
-
-        const deliveryDateZero = new Date(deliveryDate);
-        deliveryDateZero.setHours(0, 0, 0, 0);
-
-        if (deliveryDateZero.getTime() <= todayArg.getTime()) {
-          const nextDay = new Date(deliveryDateZero);
-          nextDay.setDate(nextDay.getDate() + 1);
-
-          if (nextDay.getDay() === 0) {
-            nextDay.setDate(nextDay.getDate() + 1);
-          }
-          return nextDay;
-        }
-      }
-      return deliveryDate;
-    } catch (error) {
-      console.error('Error adjusting delivery date by cutoff:', error);
-      return deliveryDate;
     }
   }
 }
