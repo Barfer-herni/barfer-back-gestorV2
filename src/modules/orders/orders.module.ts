@@ -9,7 +9,6 @@ import { Order, OrderSchema } from '../../schemas/order.schema';
 import { OptionsModule } from '../options/options.module';
 import { CouponsModule } from '../coupons/coupons.module';
 import { DeliveryAreasModule } from '../delivery-areas/delivery-areas.module';
-import { DiscountCalculatorService } from './services/discount-calculator.service';
 import { DiscountsModule } from '../discounts/discounts.module';
 import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio, PuntoEnvioSchema } from '../../schemas/punto-envio.schema';
@@ -17,7 +16,7 @@ import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schem
 
 @Module({
   controllers: [OrdersController],
-  providers: [OrdersService, DiscountCalculatorService],
+  providers: [OrdersService],
   imports: [
     MongooseModule.forFeature([
       {
