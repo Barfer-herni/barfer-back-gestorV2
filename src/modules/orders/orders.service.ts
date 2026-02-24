@@ -30,6 +30,9 @@ import { UpdateOrderDto } from './dto/update.dto';
 import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems } from './orders.helpers';
 import { MayoristasService } from '../mayoristas/mayoristas.service';
 import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
+import { Types } from 'mongoose';
+import { GetAllOrdersParams } from './interfaces/gett-all-orders-params';
+
 
 @Injectable()
 export class OrdersService {
@@ -173,6 +176,171 @@ export class OrdersService {
         throw error;
       }
       throw new InternalServerErrorException('Error updating order');
+    }
+  }
+
+  private escapeRegex(string: string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  }
+
+
+  async getAllOrders({
+    search = '',
+    sorting = [{ id: 'createdAt', desc: true }],
+    from,
+    to,
+    orderType,
+    limit,
+  }: GetAllOrdersParams): Promise<Order[]> {
+    try {
+      const baseFilter: any = {};
+
+      // Excluir pedidos express:
+      // - Pedidos viejos: método de pago 'transfer' y 'bank-transfer'
+      // - Pedidos nuevos: deliveryArea.sameDayDelivery: true
+      baseFilter.$and = [
+        {
+          $or: [
+            { paymentMethod: { $nin: ['transfer', 'bank-transfer'] } },
+            { paymentMethod: { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            { 'deliveryArea.sameDayDelivery': { $ne: true } },
+            { 'deliveryArea.sameDayDelivery': { $exists: false } },
+            { deliveryArea: { $exists: false } },
+          ],
+        },
+      ];
+
+      // Filtro por fecha si se proporciona
+      if ((from && from.trim() !== '') || (to && to.trim() !== '')) {
+        baseFilter.deliveryDay = {};
+        if (from && from.trim() !== '') {
+          const [year, month, day] = from.split('-').map(Number);
+          const fromDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
+          baseFilter.deliveryDay.$gte = fromDateObj;
+        }
+        if (to && to.trim() !== '') {
+          const [year, month, day] = to.split('-').map(Number);
+          const toDateObj = new Date(year, month - 1, day, 23, 59, 59, 999);
+          baseFilter.deliveryDay.$lte = toDateObj;
+        }
+      }
+
+      // Filtro por tipo de orden si se proporciona
+      if (orderType && orderType.trim() !== '' && orderType !== 'all') {
+        if (orderType === 'minorista') {
+          baseFilter.$or = [
+            { orderType: 'minorista' },
+            { orderType: { $exists: false } },
+            { orderType: null },
+            { orderType: '' },
+          ];
+        } else {
+          baseFilter.orderType = orderType;
+        }
+      }
+
+      const searchFilter: any = {};
+      if (search) {
+        const searchWords = search.split(' ').filter(Boolean).map(s => this.escapeRegex(s));
+        if (searchWords.length > 0) {
+          searchFilter.$and = searchWords.map((word) => {
+            // Mapeo de estados en español a inglés
+            const statusMapping: Record<string, string[]> = {
+              pendiente: ['pending'],
+              confirmado: ['confirmed'],
+              entregado: ['delivered'],
+              cancelado: ['cancelled'],
+              pending: ['pending'],
+              confirmed: ['confirmed'],
+              delivered: ['delivered'],
+              cancelled: ['cancelled'],
+            };
+
+            // Mapeo de métodos de pago en español a inglés
+            const paymentMethodMapping: Record<string, string[]> = {
+              efectivo: ['cash'],
+              transferencia: ['transfer', 'bank-transfer'],
+              'mercado pago': ['mercado-pago'],
+              cash: ['cash'],
+              transfer: ['transfer'],
+              'bank-transfer': ['bank-transfer'],
+              'mercado-pago': ['mercado-pago'],
+            };
+
+            const statusFilters = [];
+            const normalizedWord = word.toLowerCase();
+
+            if (statusMapping[normalizedWord]) {
+              statusMapping[normalizedWord].forEach((status) => {
+                statusFilters.push({ status: { $regex: status, $options: 'i' } });
+              });
+            } else {
+              statusFilters.push({ status: { $regex: word, $options: 'i' } });
+            }
+
+            const paymentMethodFilters = [];
+            if (paymentMethodMapping[normalizedWord]) {
+              paymentMethodMapping[normalizedWord].forEach((method) => {
+                paymentMethodFilters.push({ paymentMethod: { $regex: method, $options: 'i' } });
+              });
+            } else {
+              paymentMethodFilters.push({ paymentMethod: { $regex: word, $options: 'i' } });
+            }
+
+            return {
+              $or: [
+                { 'user.name': { $regex: word, $options: 'i' } },
+                { 'user.lastName': { $regex: word, $options: 'i' } },
+                { 'user.email': { $regex: word, $options: 'i' } },
+                { 'items.name': { $regex: word, $options: 'i' } },
+                { 'address.address': { $regex: word, $options: 'i' } },
+                { 'address.city': { $regex: word, $options: 'i' } },
+                ...paymentMethodFilters,
+                ...statusFilters,
+                { notesOwn: { $regex: word, $options: 'i' } },
+                { orderType: { $regex: word, $options: 'i' } },
+              ],
+            };
+          });
+        }
+
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(search.trim());
+        if (isObjectId) {
+          const objectIdMatch = { _id: new Types.ObjectId(search.trim()) };
+          if (searchFilter.$and) {
+            searchFilter.$or = [...searchFilter.$and, objectIdMatch];
+            delete searchFilter.$and;
+          } else {
+            searchFilter._id = new Types.ObjectId(search.trim());
+          }
+        }
+      }
+
+      const finalAnd = [baseFilter];
+      if (Object.keys(searchFilter).length > 0) {
+        finalAnd.push(searchFilter);
+      }
+      const matchQuery = { $and: finalAnd };
+
+      const sortQuery: any = {};
+      sorting.forEach((sort) => {
+        sortQuery[sort.id] = sort.desc ? -1 : 1;
+      });
+
+      let query = this.orderModel.find(matchQuery).sort(sortQuery);
+
+      if (limit && limit > 0) {
+        query = query.limit(limit);
+      }
+
+      const orders = await query.exec();
+      return orders;
+    } catch (error) {
+      throw new InternalServerErrorException('Could not fetch orders for export.');
     }
   }
 }

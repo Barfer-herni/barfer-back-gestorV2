@@ -15,6 +15,7 @@ import { Roles } from '../../common/enums/roles.enum';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { OrderDto } from './dto/order.dto';
 import { UpdateOrderDto } from './dto/update.dto';
+import { GetAllOrdersParamsDto } from './dto/get-all-orders-params.dto';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -32,6 +33,34 @@ export class OrdersController {
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
     return this.ordersService.updateOrder(id, data);
   }
+
+  @Get('all')
+  @Auth(Roles.User)
+  getAll(@Query() params: GetAllOrdersParamsDto) {
+    if (params.sorting && typeof params.sorting === 'string') {
+      try {
+        params.sorting = JSON.parse(params.sorting);
+      } catch (e) {
+        params.sorting = undefined;
+      }
+    }
+    return this.ordersService.getAllOrders(params);
+  }
+
+
+
+  //obtener una sola orden
+
+
+  //obtener ordenes express
+
+
+  //backups de las ordenes
+
+
+  //actualizar estado de envio
+
+
 
   @Delete(':id')
   @Auth(Roles.User)
