@@ -10,13 +10,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { v4 } from 'uuid';
 import { ROLES_KEY } from '../../common/enums/roles.enum';
 import {
   comparePassword,
   hashPassword,
 } from '../../common/utils/password.util';
-import { MailerService } from '../mailer/mailer.service';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -29,8 +27,7 @@ export class AuthService {
     private readonly userService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly mailerService: MailerService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     const user = await this.userService.findOneByEmailWithOutException(
@@ -91,46 +88,7 @@ export class AuthService {
     });
   }
 
-  async googleLogin(req): Promise<any> {
-    if (!req.user) {
-      throw new BadRequestException('No user from Google');
-    }
 
-    const { email, firstName, lastName } = req.user;
-
-    let user = await this.userService.findOneByEmailWithOutException(email);
-
-    if (!user) {
-      // Si el usuario no existe, lo registramos automáticamente
-      const registerDto = new RegisterDto();
-      registerDto.email = email;
-      registerDto.name = firstName;
-      registerDto.lastName = lastName;
-      registerDto.role = 3;
-      registerDto.password = v4(); // Puedes asignar una contraseña vacía o generar una aleatoria
-      user = await this.userService.create(registerDto);
-    }
-
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: user.role,
-    };
-
-    const token = await this.jwtService.signAsync(payload);
-
-    const refreshToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-    });
-
-    return {
-      message: 'User logged in successfully',
-      access_token: token,
-      refreshToken,
-      user_email: user.email,
-    };
-  }
 
   async logout(@Req() req: Request, @Res() res: Response) {
     res.clearCookie('access_token');
@@ -154,7 +112,6 @@ export class AuthService {
     });
 
     user.resetPasswordToken = token;
-    await this.mailerService.sendPasswordResetEmail(user.email, token);
     await this.userService.update(user.id, user);
 
     return { message: 'Correo de recuperación enviado' };
@@ -175,7 +132,7 @@ export class AuthService {
     const user = await this.userService.findOneByEmail(payload.email);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('User not found')
     }
 
     if (user.resetPasswordToken !== resetPasswordToken) {

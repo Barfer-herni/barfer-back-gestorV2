@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 import { UsersModule } from '../users/users.module';
@@ -7,12 +7,13 @@ import { AddressModule } from '../address/address.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Order, OrderSchema } from '../../schemas/order.schema';
 import { OptionsModule } from '../options/options.module';
-import { CouponsModule } from '../coupons/coupons.module';
 import { DeliveryAreasModule } from '../delivery-areas/delivery-areas.module';
 import { DiscountsModule } from '../discounts/discounts.module';
 import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio, PuntoEnvioSchema } from '../../schemas/punto-envio.schema';
 import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schema';
+import { MayoristasModule } from '../mayoristas/mayoristas.module';
+import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
 
 @Module({
   controllers: [OrdersController],
@@ -40,10 +41,14 @@ import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schem
     ProductsModule,
     AddressModule,
     OptionsModule,
-    CouponsModule,
     DeliveryAreasModule,
     DiscountsModule,
+    MayoristasModule,
+    forwardRef(() => PuntoEnvioModule),
   ],
-  exports: [OrdersService],
+  exports: [
+    OrdersService,
+    MongooseModule,
+  ],
 })
 export class OrdersModule { }

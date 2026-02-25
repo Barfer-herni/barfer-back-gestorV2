@@ -7,10 +7,7 @@ import {
   Post,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -28,10 +25,7 @@ interface RequestWithUser extends Request {
 
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   register(@Body() registerDto: RegisterDto) {
@@ -44,20 +38,7 @@ export class AuthController {
     return this.authService.login(loginDto, req, res);
   }
 
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  async googleAuth(@Req() req) {
-    // Inicia el proceso de autenticación con Google
-  }
 
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@Req() req, @Res() res) {
-    const result = await this.authService.googleLogin(req);
-    return res.redirect(
-      `${this.configService.get<string>('FRONTEND_BASE_URL')}/success?access_token=${result.access_token}&refresh_token=${result.refresh_token}`,
-    );
-  }
 
   @Post('logout')
   @HttpCode(200)

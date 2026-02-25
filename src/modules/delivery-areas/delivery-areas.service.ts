@@ -14,7 +14,6 @@ import {
   SearchAreaResponseDto,
   ZoneMatchDto,
 } from './dto/search-area-response.dto';
-import { DeliverySheetService } from '../google-sheet/delivery-sheet.service';
 
 @Injectable()
 export class DeliveryAreasService {
@@ -22,8 +21,7 @@ export class DeliveryAreasService {
     @InjectModel(DeliveryArea.name)
     private deliveryAreaModel: Model<DeliveryArea>,
     private readonly configService: ConfigService,
-    private readonly deliverySheetService: DeliverySheetService,
-  ) {}
+  ) { }
 
   async create(createDeliveryAreaDto: DeliveryAreaDto) {
     try {
@@ -81,10 +79,6 @@ export class DeliveryAreasService {
         updateDeliveryAreaDto.sameDayDelivery &&
         isDifferentSheetName
       ) {
-        await this.deliverySheetService.updateZoneSheetName(
-          currentZone.sheetName,
-          updateDeliveryAreaDto.sheetName,
-        );
       }
 
       // Actualizar la zona

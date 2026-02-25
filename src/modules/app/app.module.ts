@@ -15,7 +15,6 @@ import { ProductsModule } from '../../modules/products/products.module';
 import { UsersModule } from '../../modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { CouponsModule } from '../../modules/coupons/coupons.module';
 import ENV from '../../config/env';
 import { SalesPointsModule } from '../sales-points/sales-points.module';
 import { DiscountsModule } from '../discounts/discounts.module';
@@ -50,7 +49,6 @@ import { DiscountsModule } from '../discounts/discounts.module';
     DeliveryAreasModule,
     OrdersModule,
     OptionsModule,
-    CouponsModule,
     SalesPointsModule,
     DiscountsModule,
   ],
@@ -63,6 +61,6 @@ export class AppModule {
   constructor(
     @Inject(ENV.KEY) private readonly configService: ConfigType<typeof ENV>,
   ) {
-    AppModule.port = this.configService.port;
+    AppModule.port = this.configService.PORT;
   }
 }

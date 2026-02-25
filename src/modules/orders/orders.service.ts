@@ -14,7 +14,6 @@ import { Mayoristas } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio } from '../../schemas/punto-envio.schema';
 import { AddressService } from '../address/address.service';
 import { AddressDto } from '../address/dto/address.dto';
-import { CouponsService } from '../coupons/coupons.service';
 import { DeliveryAreasService } from '../delivery-areas/delivery-areas.service';
 import { DeliveryAreaDto } from '../delivery-areas/dto/delivery-area.dto';
 import { OptionResponseDto } from '../options/dto/option-response.dto';
@@ -46,7 +45,6 @@ export class OrdersService {
     private readonly deliveryAreaService: DeliveryAreasService,
     private readonly configService: ConfigService,
     private readonly optionsService: OptionsService,
-    private readonly couponService: CouponsService,
     private readonly mayoristasService: MayoristasService,
     private readonly puntoEnvioService: PuntoEnvioService,
   ) { }

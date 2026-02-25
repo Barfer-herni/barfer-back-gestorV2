@@ -12,11 +12,11 @@ export class MongooseConfigService implements MongooseOptionsFactory {
 
   constructor(
     @Inject(env.KEY) private readonly configService: ConfigType<typeof env>,
-  ) {}
+  ) { }
 
   async createMongooseOptions(): Promise<MongooseModuleOptions> {
     try {
-      this.URL = this.configService.database_url;
+      this.URL = this.configService.DATABASE_URL;
 
       const conn: MongooseModuleOptions = {
         uri: this.URL,
