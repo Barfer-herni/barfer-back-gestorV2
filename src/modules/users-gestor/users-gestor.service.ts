@@ -13,18 +13,9 @@ export class UsersGestorService {
     @InjectModel(UserGestor.name) private readonly usersGestorModel: Model<UserGestor>,
   ) { }
 
-  /**
-   * Crear un nuevo usuario
-   */
+
   async create(data: CreateUserGestorDto) {
     try {
-      console.log('🔄 Iniciando creación de usuario (Service):', {
-        email: data.email,
-        name: data.name,
-        lastName: data.lastName,
-        role: data.role,
-      });
-
       // Verificar si ya existe un usuario con ese email
       const existingUser = await this.usersGestorModel.findOne({ email: data.email });
 
@@ -44,10 +35,7 @@ export class UsersGestorService {
         password: hashedPassword,
         permissions: Array.from(permissionsSet),
       });
-
       const result = await newUser.save();
-      console.log('✅ Usuario creado:', { id: result._id });
-
       const userObj = result.toObject();
       delete userObj.password;
 
@@ -60,7 +48,6 @@ export class UsersGestorService {
         },
       };
     } catch (error) {
-      console.error('Error al crear usuario:', error);
       if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException(
         error instanceof Error ? error.message : 'Error al crear el usuario',
@@ -75,13 +62,10 @@ export class UsersGestorService {
     if (!isValidObjectId(userId)) {
       throw new BadRequestException('ID de usuario inválido');
     }
-
     const user = await this.usersGestorModel.findById(userId).select('-password');
-
     if (!user) {
       throw new NotFoundException('Usuario no encontrado');
     }
-
     return {
       ...user.toObject(),
       id: user._id.toString(),
@@ -111,10 +95,9 @@ export class UsersGestorService {
    * Obtener todos los usuarios excluyendo al usuario actual
    */
   async findAll(excludeUserId?: string) {
-    const query = excludeUserId && isValidObjectId(excludeUserId)
+    let query = excludeUserId && isValidObjectId(excludeUserId)
       ? { _id: { $ne: new Types.ObjectId(excludeUserId) } }
       : {};
-
     const users = await this.usersGestorModel
       .find(query)
       .select('-password')

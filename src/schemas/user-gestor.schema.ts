@@ -9,7 +9,7 @@ export enum UserRole {
 }
 
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, collection: 'users_gestor' })
 export class UserGestor extends Document {
     @Prop({ required: true })
     email: string;
@@ -33,8 +33,8 @@ export class UserGestor extends Document {
     @Prop({ required: false })
     permissions?: string[];
 
-    @Prop({ required: false })
-    puntoEnvio?: string | string[];
+    @Prop({ type: [String], required: false })
+    puntoEnvio?: string[];
 
 }
 

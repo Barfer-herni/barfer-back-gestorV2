@@ -16,14 +16,14 @@ import { UpdateUserGestorDto } from './dto/update.dto';
 export class UsersGestorController {
   constructor(private readonly service: UsersGestorService) { }
 
-  @Post()
-  async create(@Body() data: CreateUserGestorDto) {
-    return this.service.create(data);
-  }
-
   @Get()
   async findAll(@Query('exclude') exclude: string) {
     return this.service.findAll(exclude);
+  }
+
+  @Post()
+  async create(@Body() data: CreateUserGestorDto) {
+    return this.service.create(data);
   }
 
   @Get(':id')

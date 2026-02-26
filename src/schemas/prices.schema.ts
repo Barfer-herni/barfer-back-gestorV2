@@ -14,7 +14,7 @@ export enum Section {
     RAW = 'RAW',
 }
 
-@Schema()
+@Schema({ timestamps: true })
 export class Prices extends Document {
     @Prop({
         type: String,
@@ -42,8 +42,8 @@ export class Prices extends Document {
     @Prop({ required: true })
     isActive: boolean;
 
-    // @Prop({ required: true })
-    // effectiveDate: string; // no se si lo voy a dejar
+    @Prop({ required: true })
+    effectiveDate: string;
 
     @Prop({ required: true })
     month: number;
@@ -55,7 +55,7 @@ export class Prices extends Document {
     createdAt: string;
 
     @Prop({ required: true })
-    updateAt: string;
+    updatedAt: string;
 
 }
 

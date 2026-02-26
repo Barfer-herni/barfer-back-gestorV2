@@ -18,6 +18,8 @@ import { AppService } from './app.service';
 import ENV from '../../config/env';
 import { SalesPointsModule } from '../sales-points/sales-points.module';
 import { DiscountsModule } from '../discounts/discounts.module';
+import { UsersGestorModule } from '../users-gestor/users-gestor.module';
+import { PricesModule } from '../prices/prices.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { DiscountsModule } from '../discounts/discounts.module';
     OptionsModule,
     SalesPointsModule,
     DiscountsModule,
+    UsersGestorModule,
+    PricesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
