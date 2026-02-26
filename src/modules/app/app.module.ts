@@ -20,6 +20,7 @@ import { SalesPointsModule } from '../sales-points/sales-points.module';
 import { DiscountsModule } from '../discounts/discounts.module';
 import { UsersGestorModule } from '../users-gestor/users-gestor.module';
 import { PricesModule } from '../prices/prices.module';
+import { SalidasModule } from '../salidas/salidas.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PricesModule } from '../prices/prices.module';
     DiscountsModule,
     UsersGestorModule,
     PricesModule,
+    SalidasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,46 +13,44 @@ export enum TipoRegistro {
 
 @Schema()
 export class Salidas extends Document {
-    @Prop({ required: true })
+    @Prop({ type: Date, required: true })
     fechaFactura: Date | string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     detalle: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, enum: Tipo, required: true })
     tipo: Tipo;
 
-    @Prop({ required: true })
+    @Prop({ type: String, default: null })
     marca?: string | null;
 
-    @Prop({ required: true })
+    @Prop({ type: Number, required: true })
     monto: number;
 
-    @Prop({ required: true })
+    @Prop({ type: String, enum: TipoRegistro, required: true })
     tipoRegistro: TipoRegistro;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     categoriaId: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     metodoPagoId: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, default: null })
     proveedorId?: string | null;
 
-    @Prop({ required: true })
+    @Prop({ type: Date, default: null })
     fechaPago?: Date | string | null;
 
-    @Prop({ required: true })
+    @Prop({ type: String, default: null })
     comprobanteNumber?: string | null;
 
-    @Prop({ required: true })
+    @Prop({ type: Date, required: true })
     createdAt: Date | string;
 
-    @Prop({ required: true })
-    updateAt: Date | string;
-
+    @Prop({ type: Date, required: true })
+    updatedAt: Date | string;
 }
 
 export const SalidasSchema = SchemaFactory.createForClass(Salidas);
-
