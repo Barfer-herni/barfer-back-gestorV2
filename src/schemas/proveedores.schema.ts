@@ -6,44 +6,37 @@ export enum Registro {
     NEGRO = 'NEGRO',
 }
 
-
 @Schema()
 export class Proveedores extends Document {
-    @Prop({
-        type: String,
-        enum: Registro,
-        required: true
-    })
+    @Prop({ type: String, enum: Registro, required: true })
     registro: Registro;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     nombre: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     detalle: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     telefono: string;
 
-    @Prop({ required: true })
+    @Prop({ type: String, required: true })
     personaContacto: string;
 
-    @Prop({ required: true })
-    categoriaId: string;
+    @Prop({ type: String, default: null })
+    categoriaId?: string | null;
 
-    @Prop({ required: true })
-    metodoPagoId: string;
+    @Prop({ type: String, default: null })
+    metodoPagoId?: string | null;
 
-    @Prop({ required: true })
+    @Prop({ type: Boolean, required: true, default: true })
     isActive: boolean;
 
-    @Prop({ required: true })
-    createdAt: string;
+    @Prop({ type: Date, required: true })
+    createdAt: Date | string;
 
-    @Prop({ required: true })
-    updateAt: string;
-
-
+    @Prop({ type: Date, required: true })
+    updatedAt: Date | string;
 }
 
 export const ProveedoresSchema = SchemaFactory.createForClass(Proveedores);

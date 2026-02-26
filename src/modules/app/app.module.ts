@@ -21,6 +21,7 @@ import { DiscountsModule } from '../discounts/discounts.module';
 import { UsersGestorModule } from '../users-gestor/users-gestor.module';
 import { PricesModule } from '../prices/prices.module';
 import { SalidasModule } from '../salidas/salidas.module';
+import { ProveedoresModule } from '../proveedores/proveedores.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SalidasModule } from '../salidas/salidas.module';
     UsersGestorModule,
     PricesModule,
     SalidasModule,
+    ProveedoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],
