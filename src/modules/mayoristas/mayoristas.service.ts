@@ -1,28 +1,19 @@
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
-    BadRequestException,
     Inject,
     Injectable,
-    InternalServerErrorException,
-    NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Order } from '../../schemas/order.schema';
+import { Model, Types } from 'mongoose';
 import { Mayoristas } from '../../schemas/mayoristas.schema';
-import { PuntoEnvio } from '../../schemas/punto-envio.schema';
 import { AddressService } from '../address/address.service';
-import { AddressDto } from '../address/dto/address.dto';
 import { DeliveryAreasService } from '../delivery-areas/delivery-areas.service';
-import { DeliveryAreaDto } from '../delivery-areas/dto/delivery-area.dto';
-import { OptionResponseDto } from '../options/dto/option-response.dto';
 import { OptionsService } from '../options/options.service';
-import { ProductResponseDto } from '../products/dto/product-response.dto';
-import { ProductDto } from '../products/dto/product.dto';
 import { ProductsService } from '../products/products.service';
-import { UserDto } from '../users/dto/user.dto';
 import { UsersService } from '../users/users.service';
+import { CreateMayoristaDto } from './dto/create-mayorista.dto';
+import { UpdateMayoristaDto } from './dto/update-mayorista.dto';
 
 @Injectable()
 export class MayoristasService {
@@ -37,28 +28,134 @@ export class MayoristasService {
         private readonly optionsService: OptionsService,
     ) { }
 
-
-
-
-
-    async createMayoristaPerson(data: any): Promise<{ success: boolean; isNew?: boolean; error?: string }> {
+    async createMayoristaPerson(data: CreateMayoristaDto): Promise<{ success: boolean; mayorista?: Mayoristas; isNew?: boolean; error?: string }> {
         try {
-            const { user, address } = data;
-            const existingMayorista = await this.mayoristasModel.findOne({ 'user.email': user.email }).exec();
-            if (existingMayorista) return { success: true, isNew: false };
+            const { user } = data;
+            const existingMayorista = await this.mayoristasModel.findOne({
+                'user.name': user.name,
+                'user.lastName': user.lastName
+            }).exec();
 
+            if (existingMayorista) {
+                return {
+                    success: true,
+                    mayorista: existingMayorista,
+                    isNew: false
+                };
+            }
             const newMayorista = new this.mayoristasModel({
-                user,
-                address,
+                ...data,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             });
-            await newMayorista.save();
-            return { success: true, isNew: true };
+            const savedMayorista = await newMayorista.save();
+            return {
+                success: true,
+                mayorista: savedMayorista,
+                isNew: true
+            };
         } catch (error) {
             console.error('Error in createMayoristaPerson:', error);
-            return { success: false, error: error.message };
+            return { success: false, error: 'Internal server error' };
         }
     }
 
+    async getMayoristaPersons(): Promise<{ success: boolean; mayoristas?: Mayoristas[]; error?: string }> {
+        try {
+            const mayoristas = await this.mayoristasModel.find().exec();
+            return { success: true, mayoristas };
+        } catch (error) {
+            console.error('Error in getMayoristaPersons:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
+
+    async getMayoristaPersonById(id: string): Promise<{ success: boolean; mayorista?: Mayoristas; error?: string }> {
+        try {
+            const mayorista = await this.mayoristasModel.findById(id).exec();
+            if (!mayorista) {
+                return { success: false, error: 'Mayorista person not found' };
+            }
+            return { success: true, mayorista };
+        } catch (error) {
+            console.error('Error in getMayoristaPersonById:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
+
+    async findMayoristaByName(name: string, lastName: string): Promise<{ success: boolean; mayorista?: Mayoristas; error?: string }> {
+        try {
+            const mayorista = await this.mayoristasModel.findOne({
+                'user.name': name,
+                'user.lastName': lastName
+            }).exec();
+
+            if (!mayorista) {
+                return { success: false, error: 'Mayorista not found' };
+            }
+
+            return { success: true, mayorista };
+        } catch (error) {
+            console.error('Error in findMayoristaByName:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
+
+    async updateMayoristaPerson(id: string, data: UpdateMayoristaDto): Promise<{ success: boolean; mayorista?: Mayoristas; error?: string }> {
+        try {
+            const updateData = {
+                ...data,
+                updatedAt: new Date().toISOString(),
+            };
+
+            const updatedMayorista = await this.mayoristasModel.findByIdAndUpdate(
+                id,
+                { $set: updateData },
+                { new: true }
+            ).exec();
+
+            if (!updatedMayorista) {
+                return { success: false, error: 'Mayorista person not found' };
+            }
+
+            return { success: true, mayorista: updatedMayorista };
+        } catch (error) {
+            console.error('Error in updateMayoristaPerson:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
+
+    async deleteMayoristaPerson(id: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            const result = await this.mayoristasModel.findByIdAndDelete(id).exec();
+            if (!result) {
+                return { success: false, error: 'Mayorista person not found' };
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Error in deleteMayoristaPerson:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
+
+    async searchMayoristas(searchTerm: string): Promise<{ success: boolean; mayoristas?: Mayoristas[]; error?: string }> {
+        try {
+            if (!searchTerm || searchTerm.length < 2) {
+                return { success: true, mayoristas: [] };
+            }
+            const mayoristas = await this.mayoristasModel.find({
+                $or: [
+                    { 'user.name': { $regex: searchTerm, $options: 'i' } },
+                    { 'user.lastName': { $regex: searchTerm, $options: 'i' } },
+                    { 'user.email': { $regex: searchTerm, $options: 'i' } },
+                    { 'address.phone': { $regex: searchTerm, $options: 'i' } }
+                ]
+            }).limit(10).exec();
+            return { success: true, mayoristas };
+        } catch (error) {
+            console.error('Error in searchMayoristas:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
 }
+
