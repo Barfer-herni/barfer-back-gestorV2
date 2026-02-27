@@ -23,6 +23,7 @@ import { PricesModule } from '../prices/prices.module';
 import { SalidasModule } from '../salidas/salidas.module';
 import { ProveedoresModule } from '../proveedores/proveedores.module';
 import { StockModule } from '../stock/stock.module';
+import { RepartosModule } from '../repartos/repartos.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { StockModule } from '../stock/stock.module';
     SalidasModule,
     ProveedoresModule,
     StockModule,
+    RepartosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
