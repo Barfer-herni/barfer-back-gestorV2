@@ -22,6 +22,7 @@ import { UsersGestorModule } from '../users-gestor/users-gestor.module';
 import { PricesModule } from '../prices/prices.module';
 import { SalidasModule } from '../salidas/salidas.module';
 import { ProveedoresModule } from '../proveedores/proveedores.module';
+import { StockModule } from '../stock/stock.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ProveedoresModule } from '../proveedores/proveedores.module';
     PricesModule,
     SalidasModule,
     ProveedoresModule,
+    StockModule,
   ],
   controllers: [AppController],
   providers: [AppService],

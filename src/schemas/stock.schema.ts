@@ -1,19 +1,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-@Schema()
+@Schema({ timestamps: true })
 export class Stock extends Document {
 
-    @Prop({ required: true })
-    puntoEnvio: string;
-
-    @Prop({ required: true })
-    section?: string;
+    @Prop({ type: Types.ObjectId, ref: 'PuntoEnvio', required: true })
+    puntoEnvioId: Types.ObjectId;
 
     @Prop({ required: true })
     producto: string;
 
-    @Prop({ required: true })
+    @Prop()
     peso?: string;
 
     @Prop({ required: true })
@@ -29,13 +26,13 @@ export class Stock extends Document {
     stockFinal: number;
 
     @Prop({ required: true })
-    fecha: string;
+    fecha: Date;
 
-    @Prop({ required: true })
-    createdAt: string;
+    @Prop()
+    createdAt: Date;
 
-    @Prop({ required: true })
-    updatedAt: string;
+    @Prop()
+    updatedAt: Date;
 
 }
 
