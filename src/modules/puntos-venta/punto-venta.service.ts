@@ -21,7 +21,7 @@ export class PuntosVentaService {
 
 
 
-  async findAll(query: any) {
+  async findAll(query: any): Promise<any> {
     const {
       pageIndex = 0,
       pageSize = 50,
@@ -73,7 +73,7 @@ export class PuntosVentaService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<any> {
     const item = await this.puntoEnvioModel.findById(id).lean();
 
     if (!item) throw new NotFoundException('Punto de venta no encontrado');

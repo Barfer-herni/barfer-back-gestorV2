@@ -41,6 +41,16 @@ export class UsersGestorController {
     return this.service.remove(id);
   }
 
+  @Post('login')
+  async login(@Body() data: { email: string; password: string }) {
+    return this.service.login(data.email, data.password);
+  }
+
+  @Post('refresh-token')
+  async refreshToken(@Body() data: { refresh_token: string }) {
+    return this.service.refreshToken(data.refresh_token);
+  }
+
   @Post('verify')
   async verifyCredentials(@Body() data: any) {
     return this.service.verifyCredentials(data.email, data.password);
