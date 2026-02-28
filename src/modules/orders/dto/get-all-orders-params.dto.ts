@@ -7,7 +7,8 @@ export class GetAllOrdersParamsDto {
     search?: string;
 
     @IsOptional()
-    sorting?: any;
+    @IsArray()
+    sorting?: { id: string; desc: boolean }[];
 
     @IsOptional()
     @IsString()
@@ -25,14 +26,4 @@ export class GetAllOrdersParamsDto {
     @Type(() => Number)
     @IsNumber()
     limit?: number;
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsNumber()
-    pageIndex?: number;
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsNumber()
-    pageSize?: number;
 }

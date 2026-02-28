@@ -27,17 +27,15 @@ export class PuntosVentaService {
       pageSize = 50,
       search = '',
       zona,
-      activo,
+      activo = true,
       sortBy = 'nombre',
       sortDesc = false,
     } = query;
 
+    // const collection = await this.collection();
     const collection = this.puntoEnvioModel;
 
-    const filter: any = {};
-    if (activo !== undefined) {
-      filter.activo = activo === 'true' || activo === true;
-    }
+    const filter: any = { activo };
 
     if (zona) filter.zona = zona;
 
@@ -56,7 +54,7 @@ export class PuntosVentaService {
     const pageCount = Math.ceil(total / pageSize);
 
     const sortObject: any = {
-      [sortBy]: (sortDesc === 'true' || sortDesc === true) ? -1 : 1,
+      [sortBy]: sortDesc ? -1 : 1,
     };
 
     const data = await collection
