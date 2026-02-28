@@ -24,6 +24,8 @@ import { SalidasModule } from '../salidas/salidas.module';
 import { ProveedoresModule } from '../proveedores/proveedores.module';
 import { StockModule } from '../stock/stock.module';
 import { RepartosModule } from '../repartos/repartos.module';
+import { PuntoVentaModule } from '../puntos-venta/punto-venta.module';
+import { MayoristasModule } from '../mayoristas/mayoristas.module';
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { RepartosModule } from '../repartos/repartos.module';
     ProveedoresModule,
     StockModule,
     RepartosModule,
+    PuntoVentaModule,
+    MayoristasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

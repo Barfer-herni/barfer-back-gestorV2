@@ -13,7 +13,7 @@ async function main() {
       'https://www.barferalimento.com'
 
     ],
-    // credentials: true,
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   });
 

@@ -1,16 +1,8 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from '../users/users.module';
-import { ProductsModule } from '../products/products.module';
-import { AddressModule } from '../address/address.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { OptionsModule } from '../options/options.module';
-import { DeliveryAreasModule } from '../delivery-areas/delivery-areas.module';
-import { DiscountsModule } from '../discounts/discounts.module';
-import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
-import { PuntoEnvioSchema, PuntoEnvio } from 'src/schemas/punto-envio.schema';
+import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schema';
 import { PuntosVentaController } from './punto-venta.controller';
 import { PuntosVentaService } from './punto-venta.service';
-import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
 
 @Module({
   controllers: [PuntosVentaController],
@@ -18,17 +10,11 @@ import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
   imports: [
     MongooseModule.forFeature([
       {
-        name: PuntoEnvio.name,
-        schema: PuntoEnvioSchema
+        name: PuntosVenta.name,
+        schema: PuntosVentaSchema,
       },
     ]),
-    UsersModule,
-    ProductsModule,
-    AddressModule,
-    OptionsModule,
-    DeliveryAreasModule,
-    DiscountsModule,
   ],
-  exports: [PuntoEnvioService],
+  exports: [PuntosVentaService],
 })
 export class PuntoVentaModule { }

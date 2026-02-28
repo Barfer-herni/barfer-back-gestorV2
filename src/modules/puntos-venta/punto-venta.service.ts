@@ -21,21 +21,23 @@ export class PuntosVentaService {
 
 
 
-  async findAll(query: any) {
+  async findAll(query: any): Promise<any> {
     const {
       pageIndex = 0,
       pageSize = 50,
       search = '',
       zona,
-      activo = true,
+      activo,
       sortBy = 'nombre',
       sortDesc = false,
     } = query;
 
-    // const collection = await this.collection();
     const collection = this.puntoEnvioModel;
 
-    const filter: any = { activo };
+    const filter: any = {};
+    if (activo !== undefined) {
+      filter.activo = activo === 'true' || activo === true;
+    }
 
     if (zona) filter.zona = zona;
 
@@ -54,7 +56,7 @@ export class PuntosVentaService {
     const pageCount = Math.ceil(total / pageSize);
 
     const sortObject: any = {
-      [sortBy]: sortDesc ? -1 : 1,
+      [sortBy]: (sortDesc === 'true' || sortDesc === true) ? -1 : 1,
     };
 
     const data = await collection
@@ -73,7 +75,7 @@ export class PuntosVentaService {
     };
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<any> {
     const item = await this.puntoEnvioModel.findById(id).lean();
 
     if (!item) throw new NotFoundException('Punto de venta no encontrado');

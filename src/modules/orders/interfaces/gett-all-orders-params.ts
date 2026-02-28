@@ -5,4 +5,6 @@ export interface GetAllOrdersParams {
     to?: string;
     orderType?: string;
     limit?: number;
+    pageIndex?: number;
+    pageSize?: number;
 }

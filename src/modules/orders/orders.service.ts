@@ -189,7 +189,9 @@ export class OrdersService {
     to,
     orderType,
     limit,
-  }: GetAllOrdersParams): Promise<Order[]> {
+    pageIndex,
+    pageSize,
+  }: GetAllOrdersParams): Promise<{ orders: Order[]; total: number; pageCount: number }> {
     try {
       const baseFilter: any = {};
 
@@ -329,14 +331,22 @@ export class OrdersService {
         sortQuery[sort.id] = sort.desc ? -1 : 1;
       });
 
+      const total = await this.orderModel.countDocuments(matchQuery);
+
       let query = this.orderModel.find(matchQuery).sort(sortQuery);
 
-      if (limit && limit > 0) {
+      if (pageSize && pageSize > 0) {
+        const skip = (pageIndex || 0) * pageSize;
+        query = query.skip(skip).limit(pageSize);
+      } else if (limit && limit > 0) {
         query = query.limit(limit);
       }
 
       const orders = await query.exec();
-      return orders;
+      const effectivePageSize = pageSize || total || 1;
+      const pageCount = Math.ceil(total / effectivePageSize);
+
+      return { orders, total, pageCount };
     } catch (error) {
       throw new InternalServerErrorException('Could not fetch orders for export.');
     }
