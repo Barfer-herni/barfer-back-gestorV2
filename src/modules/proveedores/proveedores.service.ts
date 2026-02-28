@@ -26,7 +26,7 @@ export class ProveedoresService {
         return [
             {
                 $lookup: {
-                    from: 'categoriagstors',
+                    from: 'categorias',
                     localField: 'categoriaId',
                     foreignField: '_id',
                     as: 'categoria',
@@ -34,7 +34,7 @@ export class ProveedoresService {
             },
             {
                 $lookup: {
-                    from: 'paymentsgestors',
+                    from: 'metodos_pago',
                     localField: 'metodoPagoId',
                     foreignField: '_id',
                     as: 'metodoPago',

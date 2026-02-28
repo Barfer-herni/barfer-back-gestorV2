@@ -26,6 +26,8 @@ import { StockModule } from '../stock/stock.module';
 import { RepartosModule } from '../repartos/repartos.module';
 import { PuntoVentaModule } from '../puntos-venta/punto-venta.module';
 import { MayoristasModule } from '../mayoristas/mayoristas.module';
+import { CategoriasGestorModule } from '../categorias-gestor/categorias-gestor.module';
+import { MetodosPagoModule } from '../metodos-pago/metodos-pago.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { MayoristasModule } from '../mayoristas/mayoristas.module';
     RepartosModule,
     PuntoVentaModule,
     MayoristasModule,
+    CategoriasGestorModule,
+    MetodosPagoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

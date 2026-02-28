@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-@Schema({ timestamps: true, collection: 'categorias' })
-export class CategoriaGestor extends Document {
+@Schema({ timestamps: true, collection: 'metodos_pago' })
+export class MetodoPago extends Document {
     @Prop({ required: true, unique: true, uppercase: true, trim: true })
     nombre: string;
 
@@ -13,4 +13,4 @@ export class CategoriaGestor extends Document {
     isActive: boolean;
 }
 
-export const CategoriaGestorSchema = SchemaFactory.createForClass(CategoriaGestor);
+export const MetodoPagoSchema = SchemaFactory.createForClass(MetodoPago);

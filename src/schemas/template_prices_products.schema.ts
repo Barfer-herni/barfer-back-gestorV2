@@ -15,7 +15,7 @@ export enum PriceType {
 }
 
 
-@Schema()
+@Schema({ timestamps: true, collection: 'template_prices_products' })
 export class TemplatePricesProducts extends Document {
     @Prop({
         type: String,
@@ -32,13 +32,6 @@ export class TemplatePricesProducts extends Document {
 
     @Prop({ required: true })
     priceTypes: PriceType[];
-
-    @Prop({ required: true })
-    createdAt: string;
-
-    @Prop({ required: true })
-    updatedAt: string;
-
 
 }
 

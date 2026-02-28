@@ -5,6 +5,7 @@ import { Document } from 'mongoose';
 
 @Schema({
     timestamps: true,
+    collection: 'punto_envio'
 })
 export class PuntoEnvio {
     _id: string;

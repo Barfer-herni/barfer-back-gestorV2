@@ -29,17 +29,24 @@ export class SalidasService {
     private buildBasePipeline(): any[] {
         return [
             {
+                $addFields: {
+                    categoriaIdObj: { $convert: { input: '$categoriaId', to: 'objectId', onError: null, onNull: null } },
+                    metodoPagoIdObj: { $convert: { input: '$metodoPagoId', to: 'objectId', onError: null, onNull: null } },
+                    proveedorIdObj: { $convert: { input: '$proveedorId', to: 'objectId', onError: null, onNull: null } },
+                }
+            },
+            {
                 $lookup: {
-                    from: 'categoriagstors',
-                    localField: 'categoriaId',
+                    from: 'categorias',
+                    localField: 'categoriaIdObj',
                     foreignField: '_id',
                     as: 'categoria',
                 },
             },
             {
                 $lookup: {
-                    from: 'paymentsgestors',
-                    localField: 'metodoPagoId',
+                    from: 'metodos_pago',
+                    localField: 'metodoPagoIdObj',
                     foreignField: '_id',
                     as: 'metodoPago',
                 },
@@ -47,7 +54,7 @@ export class SalidasService {
             {
                 $lookup: {
                     from: 'proveedores',
-                    localField: 'proveedorId',
+                    localField: 'proveedorIdObj',
                     foreignField: '_id',
                     as: 'proveedor',
                 },
@@ -258,11 +265,18 @@ export class SalidasService {
     }): Promise<{ success: boolean; salidas?: SalidaData[]; total?: number; pageCount?: number; message?: string; error?: string }> {
         try {
             const pipeline: any[] = [
+                {
+                    $addFields: {
+                        categoriaIdObj: { $convert: { input: '$categoriaId', to: 'objectId', onError: null, onNull: null } },
+                        metodoPagoIdObj: { $convert: { input: '$metodoPagoId', to: 'objectId', onError: null, onNull: null } },
+                        proveedorIdObj: { $convert: { input: '$proveedorId', to: 'objectId', onError: null, onNull: null } },
+                    }
+                },
                 // Lookup categoría primero para filtrar por permisos o selección
                 {
                     $lookup: {
-                        from: 'categoriagstors',
-                        localField: 'categoriaId',
+                        from: 'categorias',
+                        localField: 'categoriaIdObj',
                         foreignField: '_id',
                         as: 'categoria',
                     },
@@ -280,7 +294,7 @@ export class SalidasService {
             if (filters.categoriaId) {
                 const categoria = await this.categoriasModel.findById(filters.categoriaId).exec();
                 if (categoria) {
-                    matchConditions['categoria.nombre'] = (categoria as any).nombre ?? categoria.name;
+                    matchConditions['categoria.nombre'] = (categoria as any).nombre;
                 } else {
                     return { success: true, salidas: [], total: 0, pageCount: 0 };
                 }
@@ -315,8 +329,8 @@ export class SalidasService {
             pipeline.push(
                 {
                     $lookup: {
-                        from: 'paymentsgestors',
-                        localField: 'metodoPagoId',
+                        from: 'metodos_pago',
+                        localField: 'metodoPagoIdObj',
                         foreignField: '_id',
                         as: 'metodoPago',
                     },
@@ -324,7 +338,7 @@ export class SalidasService {
                 {
                     $lookup: {
                         from: 'proveedores',
-                        localField: 'proveedorId',
+                        localField: 'proveedorIdObj',
                         foreignField: '_id',
                         as: 'proveedor',
                     },
@@ -381,7 +395,6 @@ export class SalidasService {
 
             const salidas = await this.salidasModel.aggregate(pipeline).exec();
             const formatted = salidas.map(s => this.formatSalida(s));
-
             return { success: true, salidas: formatted, total, pageCount };
         } catch (error) {
             console.error('Error in getSalidasPaginated:', error);

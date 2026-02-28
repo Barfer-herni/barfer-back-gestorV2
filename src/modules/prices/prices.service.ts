@@ -72,6 +72,8 @@ export class PricesService {
       if (query.year) filter.year = query.year;
       if (query.effectiveDate) filter.effectiveDate = query.effectiveDate;
 
+
+      console.log(filter)
       const prices = await this.pricesModel.find(filter, null, {
         sort: {
           section: 1,

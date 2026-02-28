@@ -38,7 +38,7 @@ export class StockService {
         return [
             {
                 $lookup: {
-                    from: 'puntoenvios',
+                    from: 'punto_envio',
                     localField: 'puntoEnvioId',
                     foreignField: '_id',
                     as: 'puntoEnvioInfo',
