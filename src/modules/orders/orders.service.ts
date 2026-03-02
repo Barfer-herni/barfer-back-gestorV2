@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order } from '../../schemas/order.schema';
+import { OrderBackup } from '../../schemas/order-backup.schema';
 import { Mayoristas } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio } from '../../schemas/punto-envio.schema';
 import { AddressService } from '../address/address.service';
@@ -29,6 +30,7 @@ import { UpdateOrderDto } from './dto/update.dto';
 import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems } from './orders.helpers';
 import { MayoristasService } from '../mayoristas/mayoristas.service';
 import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
+import { PricesService } from '../prices/prices.service';
 import { Types } from 'mongoose';
 import { GetAllOrdersParams } from './interfaces/gett-all-orders-params';
 
@@ -37,6 +39,7 @@ import { GetAllOrdersParams } from './interfaces/gett-all-orders-params';
 export class OrdersService {
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
+    @InjectModel(OrderBackup.name) private readonly orderBackupModel: Model<OrderBackup>,
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
@@ -47,6 +50,7 @@ export class OrdersService {
     private readonly optionsService: OptionsService,
     private readonly mayoristasService: MayoristasService,
     private readonly puntoEnvioService: PuntoEnvioService,
+    private readonly pricesService: PricesService,
   ) { }
 
 
@@ -97,14 +101,7 @@ export class OrdersService {
           const mayoristaResult = await this.mayoristasService.createMayoristaPerson(mayoristaPersonData);
 
           if (!mayoristaResult.success) {
-            //deberiamos enviar esto al front
             console.warn('Warning: Order created but failed to save mayorista person data:', mayoristaResult.error);
-          } else {
-            if (mayoristaResult.isNew) {
-              console.log('Order created and new mayorista person added to mayoristas collection');
-            } else {
-              console.log('Order created and existing mayorista person found in mayoristas collection');
-            }
           }
         } catch (mayoristaError) {
           console.warn('Warning: Failed to save mayorista person data:', mayoristaError);
@@ -123,10 +120,19 @@ export class OrdersService {
 
   async deleteOrder(id: string): Promise<{ success: boolean, error?: string }> {
     try {
-      const order = await this.orderModel.findByIdAndDelete(id);
-      if (!order) {
+      // Crear backup antes de eliminar
+      const existingOrder = await this.orderModel.findById(id);
+      if (!existingOrder) {
         throw new NotFoundException('Order not found');
       }
+
+      await this.orderBackupModel.create({
+        originalOrderId: new Types.ObjectId(id),
+        orderData: existingOrder.toObject(),
+        action: 'delete',
+      });
+
+      await this.orderModel.findByIdAndDelete(id);
       return { success: true };
     } catch (error) {
       console.error('Error deleting order:', error);
@@ -141,6 +147,18 @@ export class OrdersService {
 
   async updateOrder(id: string, data: UpdateOrderDto) {
     try {
+      // Crear backup antes de actualizar
+      const existingOrder = await this.orderModel.findById(id);
+      if (!existingOrder) {
+        throw new NotFoundException('Order not found');
+      }
+
+      await this.orderBackupModel.create({
+        originalOrderId: new Types.ObjectId(id),
+        orderData: existingOrder.toObject(),
+        action: 'update',
+      });
+
       const updateData: any = { ...data };
       updateData.updatedAt = new Date();
 
@@ -167,13 +185,271 @@ export class OrdersService {
 
       if (!result) throw new NotFoundException('Order not found');
 
-      return result;
+      return { success: true, order: result };
     } catch (error) {
       console.error('Error updating order:', error);
       if (error instanceof NotFoundException) {
         throw error;
       }
       throw new InternalServerErrorException('Error updating order');
+    }
+  }
+
+  // ===== DUPLICATE ORDER =====
+
+  async duplicateOrder(id: string) {
+    try {
+      const originalOrder = await this.orderModel.findById(id);
+      if (!originalOrder) {
+        throw new NotFoundException('Order not found');
+      }
+
+      const orderData = originalOrder.toObject();
+      delete orderData._id;
+      delete (orderData as any).__v;
+
+      const duplicatedOrder = new this.orderModel({
+        ...orderData,
+        notesOwn: orderData.notesOwn ? `DUPLICADO - ${orderData.notesOwn}` : 'DUPLICADO',
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await duplicatedOrder.save();
+
+      return {
+        success: true,
+        order: result,
+        message: 'Pedido duplicado correctamente',
+      };
+    } catch (error) {
+      console.error('Error duplicating order:', error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Error duplicating order');
+    }
+  }
+
+  // ===== BULK STATUS UPDATE =====
+
+  async updateOrdersStatusBulk(ids: string[], status: string) {
+    try {
+      const objectIds = ids.map(id => new Types.ObjectId(id));
+
+      // Crear backups de todas las órdenes antes de actualizar
+      const existingOrders = await this.orderModel.find({ _id: { $in: objectIds } });
+      const backups = existingOrders.map(order => ({
+        originalOrderId: order._id,
+        orderData: order.toObject(),
+        action: 'update',
+      }));
+      if (backups.length > 0) {
+        await this.orderBackupModel.insertMany(backups);
+      }
+
+      const result = await this.orderModel.updateMany(
+        { _id: { $in: objectIds } },
+        { $set: { status, updatedAt: new Date() } }
+      );
+
+      return {
+        success: true,
+        modifiedCount: result.modifiedCount,
+      };
+    } catch (error) {
+      console.error('Error updating orders status:', error);
+      throw new InternalServerErrorException('Error updating orders status');
+    }
+  }
+
+  // ===== BACKUP / UNDO SYSTEM =====
+
+  async getBackupsCount(): Promise<{ success: boolean; count: number }> {
+    try {
+      const count = await this.orderBackupModel.countDocuments();
+      return { success: true, count };
+    } catch (error) {
+      console.error('Error getting backups count:', error);
+      return { success: false, count: 0 };
+    }
+  }
+
+  async undoLastChange(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const lastBackup = await this.orderBackupModel.findOne().sort({ createdAt: -1 });
+      if (!lastBackup) {
+        return { success: false, error: 'No hay cambios para deshacer' };
+      }
+
+      if (lastBackup.action === 'delete') {
+        // Restaurar la orden eliminada
+        const orderData = { ...lastBackup.orderData };
+        const originalId = lastBackup.originalOrderId;
+        delete (orderData as any).__v;
+
+        // Intentar restaurar con el mismo _id
+        await this.orderModel.create({ ...orderData, _id: originalId });
+      } else if (lastBackup.action === 'update') {
+        // Restaurar al estado anterior
+        const orderData = { ...lastBackup.orderData };
+        const originalId = lastBackup.originalOrderId;
+        delete (orderData as any)._id;
+        delete (orderData as any).__v;
+
+        await this.orderModel.findByIdAndUpdate(
+          originalId,
+          { $set: orderData },
+          { new: true }
+        );
+      }
+
+      // Eliminar el backup usado
+      await this.orderBackupModel.findByIdAndDelete(lastBackup._id);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error undoing last change:', error);
+      return { success: false, error: 'Error al deshacer el cambio' };
+    }
+  }
+
+  async clearAllBackups(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.orderBackupModel.deleteMany({});
+      return { success: true };
+    } catch (error) {
+      console.error('Error clearing backups:', error);
+      return { success: false, error: 'Error al limpiar el historial' };
+    }
+  }
+
+  // ===== PRICE CALCULATION =====
+
+  async calculatePrice(
+    items: Array<{
+      name: string;
+      fullName?: string;
+      options: Array<{ name: string; quantity: number }>;
+    }>,
+    orderType: 'minorista' | 'mayorista',
+    paymentMethod: string,
+    deliveryDate?: string | Date,
+  ): Promise<{
+    success: boolean;
+    total?: number;
+    itemPrices?: Array<{
+      name: string;
+      weight: string;
+      unitPrice: number;
+      quantity: number;
+      subtotal: number;
+    }>;
+    error?: string;
+  }> {
+    try {
+      // Determinar el priceType según orderType y paymentMethod
+      let priceType: string;
+      if (orderType === 'mayorista') {
+        priceType = 'MAYORISTA';
+      } else if (paymentMethod === 'efectivo' || paymentMethod === 'cash') {
+        priceType = 'EFECTIVO';
+      } else {
+        priceType = 'TRANSFERENCIA';
+      }
+
+      // Obtener TODOS los precios (incluye historial) ordenados por effectiveDate desc
+      const pricesResult = await this.pricesService.getAllPrices();
+      if (!pricesResult.success || !pricesResult.prices) {
+        return { success: false, error: 'No se pudieron obtener los precios' };
+      }
+
+      // Ordenar por effectiveDate descendente para que el más reciente esté primero
+      const allPrices = [...pricesResult.prices].sort((a: any, b: any) => {
+        const dateA = a.effectiveDate || '';
+        const dateB = b.effectiveDate || '';
+        return dateB.localeCompare(dateA);
+      });
+
+      const itemPrices: Array<{
+        name: string;
+        weight: string;
+        unitPrice: number;
+        quantity: number;
+        subtotal: number;
+      }> = [];
+      let total = 0;
+
+      for (const item of items) {
+        // Determinar section, product y weight a partir del fullName o del name
+        let section: string | null = null;
+        let product: string | null = null;
+        let weight: string | null = null;
+
+        const nameToCheck = item.fullName || item.name;
+
+        if (nameToCheck && nameToCheck.includes(' - ')) {
+          const parts = nameToCheck.split(' - ');
+          section = parts[0]?.trim().toUpperCase() || null;
+          product = parts[1]?.trim().toUpperCase() || null;
+          weight = parts[2]?.trim().toUpperCase() || null;
+        } else {
+          // Intentar buscar por nombre directo
+          product = item.name?.toUpperCase() || null;
+          weight = item.options?.[0]?.name?.toUpperCase() || null;
+        }
+
+        // Helper para matchear producto
+        const matchesProduct = (p: any) => {
+          const pSection = (p.section || '').toUpperCase();
+          const pProduct = (p.product || '').toUpperCase();
+          const pWeight = (p.weight || '').toUpperCase();
+          const pPriceType = (p.priceType || '').toUpperCase();
+
+          if (pPriceType !== priceType) return false;
+
+          if (section) {
+            return pSection === section && pProduct === product && (
+              (!weight && !pWeight) || pWeight === weight
+            );
+          }
+
+          return pProduct === product && (
+            (!weight && !pWeight) || pWeight === weight
+          );
+        };
+
+        // Buscar el precio más reciente con price > 0
+        const matchingPrice = allPrices.find((p: any) => matchesProduct(p) && p.price > 0);
+        // Fallback: si no hay precio > 0, usar el más reciente (puede ser 0)
+        const fallbackPrice = !matchingPrice ? allPrices.find((p: any) => matchesProduct(p)) : null;
+
+        const unitPrice = matchingPrice ? matchingPrice.price : (fallbackPrice ? fallbackPrice.price : 0);
+
+        // Calcular cantidad total del item
+        const quantity = item.options?.reduce((sum, opt) => sum + (opt.quantity || 1), 0) || 1;
+
+        const subtotal = unitPrice * quantity;
+        total += subtotal;
+
+        itemPrices.push({
+          name: item.fullName || item.name,
+          weight: weight || item.options?.[0]?.name || '',
+          unitPrice,
+          quantity,
+          subtotal,
+        });
+      }
+
+      return {
+        success: true,
+        total,
+        itemPrices,
+      };
+    } catch (error) {
+      console.error('Error calculating price:', error);
+      return { success: false, error: 'Error al calcular el precio' };
     }
   }
 

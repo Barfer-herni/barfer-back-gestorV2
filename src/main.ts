@@ -9,6 +9,7 @@ async function main() {
   app.enableCors({
     origin: [
       'http://localhost:3000',
+      'http://localhost:4000',
       'https://barf-ecommerce-client.vercel.app',
       'https://www.barferalimento.com'
 

@@ -168,7 +168,7 @@ export class PuntosVentaService {
   }
 
 
-  async searchPuntosVenta(searchTerm: string) {
+  async searchPuntosVenta(searchTerm: string): Promise<any[]> {
     const collection = this.puntosVentaModel;
 
     const puntosVenta = await collection.find({

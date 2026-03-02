@@ -24,7 +24,8 @@ export class Order {
   items: ProductDto[];
 
   @Prop({
-    required: true,
+    required: false,
+    default: 0,
   })
   subTotal: number;
 
@@ -35,7 +36,8 @@ export class Order {
   shippingPrice?: number;
 
   @Prop({
-    required: true,
+    required: false,
+    default: '',
   })
   notes: string;
 

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 
 export enum OrderStatus {
@@ -129,6 +130,7 @@ export class OrderDto {
   };
 
   @IsNotEmpty()
+  @Type(() => Date)
   @IsDate()
   deliveryDay: Date;
 

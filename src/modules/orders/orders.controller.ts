@@ -28,6 +28,38 @@ export class OrdersController {
     return this.ordersService.createOrder(data);
   }
 
+  @Post('calculate-price')
+  @Auth(Roles.User)
+  calculatePrice(@Body() data: {
+    items: Array<{
+      name: string;
+      fullName?: string;
+      options: Array<{ name: string; quantity: number }>;
+    }>;
+    orderType: 'minorista' | 'mayorista';
+    paymentMethod: string;
+    deliveryDate?: string;
+  }) {
+    return this.ordersService.calculatePrice(
+      data.items,
+      data.orderType,
+      data.paymentMethod,
+      data.deliveryDate,
+    );
+  }
+
+  @Post(':id/duplicate')
+  @Auth(Roles.User)
+  duplicate(@Param('id') id: string) {
+    return this.ordersService.duplicateOrder(id);
+  }
+
+  @Post('status-bulk')
+  @Auth(Roles.User)
+  updateStatusBulk(@Body() data: { ids: string[]; status: string }) {
+    return this.ordersService.updateOrdersStatusBulk(data.ids, data.status);
+  }
+
   @Patch(':id')
   @Auth(Roles.User)
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
@@ -47,25 +79,27 @@ export class OrdersController {
     return this.ordersService.getAllOrders(params);
   }
 
+  @Get('backups/count')
+  @Auth(Roles.User)
+  getBackupsCount() {
+    return this.ordersService.getBackupsCount();
+  }
 
+  @Post('backups/undo')
+  @Auth(Roles.User)
+  undoLastChange() {
+    return this.ordersService.undoLastChange();
+  }
 
-  //obtener una sola orden
-
-
-  //obtener ordenes express
-
-
-  //backups de las ordenes
-
-
-  //actualizar estado de envio
-
-
+  @Delete('backups')
+  @Auth(Roles.User)
+  clearBackups() {
+    return this.ordersService.clearAllBackups();
+  }
 
   @Delete(':id')
   @Auth(Roles.User)
   delete(@Param('id') id: string) {
     return this.ordersService.deleteOrder(id);
   }
-
 }

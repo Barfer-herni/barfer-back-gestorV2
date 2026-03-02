@@ -28,6 +28,15 @@ import { PuntoEnvioDto } from './dto/punto-envio.dto';
 import { UpdatePuntoEnvioDto } from './dto/update.dto';
 import { MayoristasService } from '../mayoristas/mayoristas.service';
 
+function safeISOString(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (val instanceof Date) return val.toISOString();
+  if (typeof val === 'string') {
+    try { return new Date(val).toISOString(); } catch { return val; }
+  }
+  return new Date(val).toISOString();
+}
+
 @Injectable()
 export class PuntoEnvioService {
   constructor(
@@ -53,13 +62,13 @@ export class PuntoEnvioService {
     error?: string;
   }> {
     try {
-      const puntosEnvio = await this.puntoEnvioModel.find({}).sort({ createAt: -1 })
+      const puntosEnvio = await this.puntoEnvioModel.find({}).sort({ createdAt: -1 })
       const formatted = puntosEnvio.map((doc) => ({
         _id: doc._id.toString(),
         nombre: doc.nombre || '',
         cutoffTime: doc.cutoffTime,
-        createdAt: (doc.createdAt as unknown as Date).toISOString(),
-        updatedAt: (doc.updatedAt as unknown as Date).toISOString(),
+        createdAt: safeISOString(doc.createdAt),
+        updatedAt: safeISOString(doc.updatedAt),
       }));
       return {
         success: true,
@@ -101,8 +110,8 @@ export class PuntoEnvioService {
         _id: puntoEnvio._id.toString(),
         nombre: puntoEnvio.nombre,
         cutoffTime: puntoEnvio.cutoffTime,
-        createdAt: (puntoEnvio.createdAt as unknown as Date).toISOString(),
-        updatedAt: (puntoEnvio.updatedAt as unknown as Date).toISOString(),
+        createdAt: safeISOString(puntoEnvio.createdAt),
+        updatedAt: safeISOString(puntoEnvio.updatedAt),
       },
     };
   }
@@ -126,8 +135,8 @@ export class PuntoEnvioService {
         _id: puntoEnvio._id.toString(),
         nombre: puntoEnvio.nombre,
         cutoffTime: puntoEnvio.cutoffTime,
-        createdAt: (puntoEnvio.createdAt as unknown as Date).toISOString(),
-        updatedAt: (puntoEnvio.updatedAt as unknown as Date).toISOString(),
+        createdAt: safeISOString(puntoEnvio.createdAt),
+        updatedAt: safeISOString(puntoEnvio.updatedAt),
       },
     };
   }
@@ -221,8 +230,8 @@ export class PuntoEnvioService {
         _id: updated._id.toString(),
         nombre: updated.nombre,
         cutoffTime: updated.cutoffTime,
-        createdAt: (updated.createdAt as unknown as Date).toISOString(),
-        updatedAt: (updated.updatedAt as unknown as Date).toISOString(),
+        createdAt: safeISOString(updated.createdAt),
+        updatedAt: safeISOString(updated.updatedAt),
       },
       message: 'Punto de envío actualizado exitosamente',
     };

@@ -12,8 +12,10 @@ import { DiscountsModule } from '../discounts/discounts.module';
 import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio, PuntoEnvioSchema } from '../../schemas/punto-envio.schema';
 import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schema';
+import { OrderBackup, OrderBackupSchema } from '../../schemas/order-backup.schema';
 import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
+import { PricesModule } from '../prices/prices.module';
 
 @Module({
   controllers: [OrdersController],
@@ -36,6 +38,10 @@ import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
         name: PuntosVenta.name,
         schema: PuntosVentaSchema,
       },
+      {
+        name: OrderBackup.name,
+        schema: OrderBackupSchema,
+      },
     ]),
     UsersModule,
     ProductsModule,
@@ -45,6 +51,7 @@ import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
     DiscountsModule,
     MayoristasModule,
     forwardRef(() => PuntoEnvioModule),
+    PricesModule,
   ],
   exports: [
     OrdersService,
