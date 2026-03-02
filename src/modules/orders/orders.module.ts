@@ -16,6 +16,7 @@ import { OrderBackup, OrderBackupSchema } from '../../schemas/order-backup.schem
 import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
 import { PricesModule } from '../prices/prices.module';
+import { Salidas, SalidasSchema } from '../../schemas/salidas.schema';
 
 @Module({
   controllers: [OrdersController],
@@ -41,6 +42,10 @@ import { PricesModule } from '../prices/prices.module';
       {
         name: OrderBackup.name,
         schema: OrderBackupSchema,
+      },
+      {
+        name: Salidas.name,
+        schema: SalidasSchema,
       },
     ]),
     UsersModule,
