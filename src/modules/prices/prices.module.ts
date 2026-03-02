@@ -17,7 +17,7 @@ import { PricesController } from './prices.controller';
 
 
 import { Prices, PricesSchema } from '../../schemas/prices.schema';
-import { TemplatePricesProducts, TemplatePricesProductsSchema } from '../../schemas/template_prices_products.schema';
+import { TemplatePricesProductsModule } from '../template_prices_products/template_prices_products.module';
 
 @Module({
   controllers: [PricesController],
@@ -44,10 +44,6 @@ import { TemplatePricesProducts, TemplatePricesProductsSchema } from '../../sche
         name: Prices.name,
         schema: PricesSchema,
       },
-      {
-        name: TemplatePricesProducts.name,
-        schema: TemplatePricesProductsSchema,
-      },
     ]),
     UsersModule,
     ProductsModule,
@@ -56,6 +52,7 @@ import { TemplatePricesProducts, TemplatePricesProductsSchema } from '../../sche
     DeliveryAreasModule,
     DiscountsModule,
     MayoristasModule,
+    TemplatePricesProductsModule,
     forwardRef(() => PuntoEnvioModule),
   ],
   exports: [

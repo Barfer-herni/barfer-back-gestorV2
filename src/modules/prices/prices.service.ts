@@ -11,13 +11,14 @@ import { TemplatePricesProducts } from '../../schemas/template_prices_products.s
 import { PriceDto } from './dto/price.dto';
 import { UpdatePriceDto } from './dto/update.dto';
 import { PriceHistory, PriceHistoryQuery, PriceStats } from './interfaces/prices.interfaces';
+import { TemplatePricesProductsService } from '../template_prices_products/template_prices_products.service';
 
 @Injectable()
 export class PricesService {
   constructor(
     @InjectModel(Prices.name) private readonly pricesModel: Model<Prices>,
-    @InjectModel(TemplatePricesProducts.name) private readonly templateModel: Model<TemplatePricesProducts>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly templatePricesProductsService: TemplatePricesProductsService,
   ) { }
 
   /**
@@ -71,9 +72,6 @@ export class PricesService {
       if (query.month) filter.month = query.month;
       if (query.year) filter.year = query.year;
       if (query.effectiveDate) filter.effectiveDate = query.effectiveDate;
-
-
-      console.log(filter)
       const prices = await this.pricesModel.find(filter, null, {
         sort: {
           section: 1,
@@ -175,24 +173,27 @@ export class PricesService {
       await newPrice.save();
 
       // Update template logic
-      const existingTemplate = await this.templateModel.findOne({
-        section: data.section,
-        product: data.product,
-        weight: data.weight || null
-      });
+      const templateResult = await this.templatePricesProductsService.findAll();
+      const existingTemplate = templateResult.success
+        ? templateResult.template.find(t =>
+          (t.section as any) === (data.section as any) &&
+          t.product === data.product &&
+          (t.weight === (data.weight || null))
+        )
+        : null;
 
       if (existingTemplate) {
         if (!existingTemplate.priceTypes.includes(data.priceType as any)) {
-          await this.templateModel.updateOne(
-            { _id: existingTemplate._id },
-            {
-              $addToSet: { priceTypes: data.priceType },
-              $set: { updatedAt: now }
-            }
+          const newPriceTypes = [...existingTemplate.priceTypes, data.priceType as any];
+          await this.templatePricesProductsService.updatePriceTypes(
+            data.section,
+            data.product,
+            data.weight,
+            newPriceTypes
           );
         }
       } else {
-        await this.addProductToTemplate(
+        await this.templatePricesProductsService.addProduct(
           data.section as any,
           data.product,
           data.weight,
@@ -430,9 +431,8 @@ export class PricesService {
       } else {
         filter.$or = [{ weight: null }, { weight: { $exists: false } }];
       }
-
       const result = await this.pricesModel.deleteMany(filter);
-      await this.removeProductFromTemplate(section as any, product, weight === null ? undefined : weight);
+      await this.templatePricesProductsService.removeProduct(section as any, product, weight === null ? undefined : weight);
       await this.cacheManager.reset();
 
       return {
@@ -482,6 +482,11 @@ export class PricesService {
 
       const result = await this.pricesModel.updateMany(filter, updateOperation);
       await this.cacheManager.reset();
+
+      //editar tambien en el template
+      await this.templatePricesProductsService.updateProduct(oldSection, oldProduct, oldWeight, newData);
+
+
 
       return {
         success: true,
@@ -542,7 +547,7 @@ export class PricesService {
         addedCount = insertResult.length;
       }
 
-      await this.updateTemplateProductPriceTypes(section as any, product, weight || undefined, newPriceTypes as any);
+      await this.templatePricesProductsService.updatePriceTypes(section as any, product, weight || undefined, newPriceTypes as any);
       await this.cacheManager.reset();
 
       return { success: true, addedCount, removedCount };
@@ -620,54 +625,6 @@ export class PricesService {
     }
   }
 
-  // --- Template Methods ---
-
-  async getProductTemplate() {
-    try {
-      const template = await this.templateModel.find().exec();
-      return { success: true, template };
-    } catch (error) {
-      console.error('Error getting template:', error);
-      return { success: false, template: [] };
-    }
-  }
-
-  async addProductToTemplate(section: any, product: string, weight: string | undefined, priceTypes: any[]) {
-    try {
-      const existing = await this.templateModel.findOne({ section, product, weight: weight || null });
-      if (existing) return { success: true, message: 'Ya existe' };
-
-      const now = new Date().toISOString();
-      await new this.templateModel({ section, product, weight: weight || null, priceTypes, createdAt: now, updatedAt: now }).save();
-      return { success: true };
-    } catch (error) {
-      console.error('Error adding to template:', error);
-      return { success: false };
-    }
-  }
-
-  async updateTemplateProductPriceTypes(section: any, product: string, weight: string | undefined, priceTypes: any[]) {
-    try {
-      const filter = { section, product, weight: weight || null };
-      const result = await this.templateModel.updateOne(filter, { $set: { priceTypes, updatedAt: new Date().toISOString() } });
-      if (result.matchedCount === 0) return await this.addProductToTemplate(section, product, weight, priceTypes);
-      return { success: true };
-    } catch (error) {
-      console.error('Error updating template price types:', error);
-      return { success: false };
-    }
-  }
-
-  async removeProductFromTemplate(section: any, product: string, weight: string | undefined) {
-    try {
-      await this.templateModel.deleteOne({ section, product, weight: weight || null });
-      return { success: true };
-    } catch (error) {
-      console.error('Error removing from template:', error);
-      return { success: false };
-    }
-  }
-
   // --- Initialization ---
 
   async initializePricesForPeriod(month: number, year: number) {
@@ -675,7 +632,7 @@ export class PricesService {
       const existingCount = await this.pricesModel.countDocuments({ month, year });
       if (existingCount > 0) return { success: true, message: 'Ya existen precios', created: 0 };
 
-      const templateResult = await this.getProductTemplate();
+      const templateResult = await this.templatePricesProductsService.findAll();
       if (!templateResult.success || templateResult.template.length === 0) return { success: false, created: 0 };
 
       const now = new Date().toISOString();

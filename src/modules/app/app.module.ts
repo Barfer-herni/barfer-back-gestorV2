@@ -28,6 +28,7 @@ import { PuntoVentaModule } from '../puntos-venta/punto-venta.module';
 import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { CategoriasGestorModule } from '../categorias-gestor/categorias-gestor.module';
 import { MetodosPagoModule } from '../metodos-pago/metodos-pago.module';
+import { TemplatePricesProductsModule } from '../template_prices_products/template_prices_products.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { MetodosPagoModule } from '../metodos-pago/metodos-pago.module';
     MayoristasModule,
     CategoriasGestorModule,
     MetodosPagoModule,
+    TemplatePricesProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

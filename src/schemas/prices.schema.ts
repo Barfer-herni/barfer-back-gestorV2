@@ -3,8 +3,8 @@ import { Document } from 'mongoose';
 
 export enum PriceType {
     EFECTIVO = 'EFECTIVO',
+    TRANSFERENCIA = 'TRANSFERENCIA',
     MAYORISTA = 'MAYORISTA',
-    MINORISTA = 'MINORISTA',
 }
 
 export enum Section {
