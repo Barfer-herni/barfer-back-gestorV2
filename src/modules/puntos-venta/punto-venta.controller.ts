@@ -16,31 +16,33 @@ import { UpdatePuntoVentaDto } from './dto/update.dto';
 export class PuntosVentaController {
   constructor(private readonly service: PuntosVentaService) { }
 
+
+  @Post('create')
+  create(@Body() dto: CreatePuntoVentaDto) {
+    return this.service.createPuntoVenta(dto);
+  }
+
   @Get()
   findAll(@Query() query: any) {
-    return this.service.findAll(query);
+    return this.service.getPuntosVenta(query);
   }
 
   @Get(':id')
   findById(@Param('id') id: string) {
-    return this.service.findById(id);
+    return this.service.getPuntoVentaById(id);
   }
 
-  @Post()
-  create(@Body() dto: CreatePuntoVentaDto) {
-    return this.service.create(dto);
-  }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() dto: UpdatePuntoVentaDto,
   ): any {
-    return this.service.update(id, dto);
+    return this.service.updatePuntoVenta(id, dto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.service.softDelete(id);
+    return this.service.deletePuntoVenta(id);
   }
 }
