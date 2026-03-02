@@ -455,6 +455,7 @@ export class OrdersService {
     }
   }
 
+
   private escapeRegex(string: string) {
     return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   }
