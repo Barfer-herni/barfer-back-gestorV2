@@ -12,6 +12,7 @@ import { Model } from 'mongoose';
 import { Order } from '../../schemas/order.schema';
 import { Mayoristas } from '../../schemas/mayoristas.schema';
 import { PuntoEnvio } from '../../schemas/punto-envio.schema';
+import { Salidas } from '../../schemas/salidas.schema';
 import { AddressService } from '../address/address.service';
 import { AddressDto } from '../address/dto/address.dto';
 import { DeliveryAreasService } from '../delivery-areas/delivery-areas.service';
@@ -38,6 +39,7 @@ export class OrdersService {
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
+    @InjectModel(Salidas.name) private readonly salidasModel: Model<Salidas>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
@@ -341,4 +343,245 @@ export class OrdersService {
       throw new InternalServerErrorException('Could not fetch orders for export.');
     }
   }
+
+  async getBalanceMonthly(startDate?: Date, endDate?: Date) {
+    try {
+      const ordersMatchCondition: any = {};
+      if (startDate || endDate) {
+        ordersMatchCondition.createdAt = {};
+        if (startDate) ordersMatchCondition.createdAt.$gte = startDate;
+        if (endDate) ordersMatchCondition.createdAt.$lte = endDate;
+      } else {
+        const currentYear = new Date().getFullYear();
+        const yearStartDate = new Date(currentYear - 2, 0, 1);
+        const yearEndDate = new Date(currentYear, 11, 31, 23, 59, 59);
+        ordersMatchCondition.createdAt = { $gte: yearStartDate, $lte: yearEndDate };
+      }
+
+      const ordersPipeline: any[] = [];
+      ordersPipeline.push({
+        $addFields: {
+          createdAt: {
+            $cond: [
+              { $eq: [{ $type: "$createdAt" }, "string"] },
+              { $toDate: "$createdAt" },
+              "$createdAt"
+            ]
+          }
+        }
+      });
+
+      if (Object.keys(ordersMatchCondition).length > 0) {
+        ordersPipeline.push({ $match: ordersMatchCondition });
+      }
+
+      ordersPipeline.push(
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            totalExpress: {
+              $sum: {
+                $cond: [
+                  { $eq: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] },
+                  '$total',
+                  0
+                ]
+              }
+            },
+            cantExpress: {
+              $sum: {
+                $cond: [
+                  { $eq: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] },
+                  1,
+                  0
+                ]
+              }
+            },
+            totalMayorista: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                    ]
+                  },
+                  '$total',
+                  0
+                ]
+              }
+            },
+            cantMayorista: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            totalMinorista: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                    ]
+                  },
+                  '$total',
+                  0
+                ]
+              }
+            },
+            cantMinorista: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            },
+            totalEntradas: { $sum: '$total' },
+            totalOrdenes: { $sum: 1 },
+            totalItems: { $sum: { $size: { $ifNull: ['$items', []] } } }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      );
+
+      const ordersResult = await this.orderModel.aggregate(ordersPipeline).exec();
+
+      const salidasMatchCondition: any = {};
+      if (startDate || endDate) {
+        salidasMatchCondition.fechaFactura = {};
+        if (startDate) salidasMatchCondition.fechaFactura.$gte = startDate;
+        if (endDate) salidasMatchCondition.fechaFactura.$lte = endDate;
+      } else {
+        const currentYear = new Date().getFullYear();
+        const yearStartDate = new Date(currentYear - 2, 0, 1);
+        const yearEndDate = new Date(currentYear, 11, 31, 23, 59, 59);
+        salidasMatchCondition.fechaFactura = { $gte: yearStartDate, $lte: yearEndDate };
+      }
+
+      const salidasResult = await this.salidasModel.find(salidasMatchCondition).exec();
+
+      const salidasByMonth = new Map<string, any>();
+      for (const salida of salidasResult) {
+        const fecha = new Date(salida.fechaFactura);
+        const monthKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+        const marca = salida.marca?.toLowerCase() || 'barfer';
+        const isBarfer = marca === 'barfer';
+        const isSLR = marca === 'slr';
+
+        const current = salidasByMonth.get(monthKey) || {
+          total: 0,
+          ordinariosBarfer: 0,
+          ordinariosSLR: 0,
+          extraordinariosBarfer: 0,
+          extraordinariosSLR: 0
+        };
+
+        current.total += salida.monto;
+        if (salida.tipo === 'ORDINARIO') {
+          if (isSLR) current.ordinariosSLR += salida.monto;
+          else current.ordinariosBarfer += salida.monto;
+        } else if (salida.tipo === 'EXTRAORDINARIO') {
+          if (isSLR) current.extraordinariosSLR += salida.monto;
+          else current.extraordinariosBarfer += salida.monto;
+        }
+        salidasByMonth.set(monthKey, current);
+      }
+
+      const balanceData = [];
+      for (const orderData of ordersResult) {
+        const monthKey = `${orderData._id.year}-${String(orderData._id.month).padStart(2, '0')}`;
+        const salidasData = salidasByMonth.get(monthKey) || {
+          total: 0,
+          ordinariosBarfer: 0,
+          ordinariosSLR: 0,
+          extraordinariosBarfer: 0,
+          extraordinariosSLR: 0
+        };
+
+        const totalEntradas = orderData.totalEntradas;
+        const totalMinorista = orderData.totalMinorista;
+        const totalMayorista = orderData.totalMayorista;
+        const totalExpress = orderData.totalExpress;
+        const totalOrdenes = orderData.totalOrdenes;
+        const estimatedWeight = orderData.totalItems * 8; // Estimación de 8kg promedio por item
+
+        const resultadoSinExtraordinarios = totalEntradas - (salidasData.ordinariosBarfer + salidasData.ordinariosSLR);
+        const resultadoConExtraordinarios = totalEntradas - salidasData.total;
+        const precioPorKg = estimatedWeight > 0 ? totalEntradas / estimatedWeight : 0;
+
+        balanceData.push({
+          mes: monthKey,
+          entradasMinorista: totalMinorista,
+          entradasMinoristaPorcentaje: totalEntradas > 0 ? (totalMinorista / totalEntradas) * 100 : 0,
+          cantVentasMinorista: orderData.cantMinorista,
+          cantVentasMinoristaPorcentaje: totalOrdenes > 0 ? (orderData.cantMinorista / totalOrdenes) * 100 : 0,
+          entradasMayorista: totalMayorista,
+          entradasMayoristaPorcentaje: totalEntradas > 0 ? (totalMayorista / totalEntradas) * 100 : 0,
+          cantVentasMayorista: orderData.cantMayorista,
+          cantVentasMayoristaPorcentaje: totalOrdenes > 0 ? (orderData.cantMayorista / totalOrdenes) * 100 : 0,
+          entradasExpress: totalExpress,
+          entradasExpressPorcentaje: totalEntradas > 0 ? (totalExpress / totalEntradas) * 100 : 0,
+          cantVentasExpress: orderData.cantExpress,
+          cantVentasExpressPorcentaje: totalOrdenes > 0 ? (orderData.cantExpress / totalOrdenes) * 100 : 0,
+          entradasTotales: totalEntradas,
+          salidas: salidasData.total,
+          salidasPorcentaje: totalEntradas > 0 ? (salidasData.total / totalEntradas) * 100 : 0,
+          gastosOrdinariosBarfer: salidasData.ordinariosBarfer,
+          gastosOrdinariosSLR: salidasData.ordinariosSLR,
+          gastosOrdinariosTotal: salidasData.ordinariosBarfer + salidasData.ordinariosSLR,
+          gastosExtraordinariosBarfer: salidasData.extraordinariosBarfer,
+          gastosExtraordinariosSLR: salidasData.extraordinariosSLR,
+          gastosExtraordinariosTotal: salidasData.extraordinariosBarfer + salidasData.extraordinariosSLR,
+          resultadoSinExtraordinarios,
+          resultadoConExtraordinarios,
+          porcentajeSinExtraordinarios: totalEntradas > 0 ? (resultadoSinExtraordinarios / totalEntradas) * 100 : 0,
+          porcentajeConExtraordinarios: totalEntradas > 0 ? (resultadoConExtraordinarios / totalEntradas) * 100 : 0,
+          precioPorKg
+        });
+      }
+
+      return { success: true, data: balanceData };
+    } catch (error) {
+      console.error('Error fetching balance monthly:', error);
+      throw new InternalServerErrorException('Could not fetch balance monthly.');
+    }
+  }
+
+  getWeightFromOption(productName: string, optionName: string): number {
+    const lowerProductName = productName.toLowerCase();
+    if (lowerProductName.includes('big dog')) return 15;
+    if (lowerProductName.includes('complemento')) return 0;
+    const match = optionName.match(/(\d+(?:\.\d+)?)\s*k?g/i);
+    if (match && match[1]) return parseFloat(match[1]);
+    return 0;
+  }
+
+
+
+
+
 }
+
+
+
+

@@ -16,6 +16,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { OrderDto } from './dto/order.dto';
 import { UpdateOrderDto } from './dto/update.dto';
 import { GetAllOrdersParamsDto } from './dto/get-all-orders-params.dto';
+import { BalanceMonthlyParamsDto } from './dto/balance.dto';
 import { OrdersService } from './orders.service';
 
 @Controller('orders')
@@ -47,19 +48,11 @@ export class OrdersController {
     return this.ordersService.getAllOrders(params);
   }
 
-
-
-  //obtener una sola orden
-
-
-  //obtener ordenes express
-
-
-  //backups de las ordenes
-
-
-  //actualizar estado de envio
-
+  @Get('balance-monthly')
+  // @Auth(Roles.User)
+  getBalanceMonthly(@Query() params: BalanceMonthlyParamsDto) {
+    return this.ordersService.getBalanceMonthly(params.startDate, params.endDate);
+  }
 
 
   @Delete(':id')

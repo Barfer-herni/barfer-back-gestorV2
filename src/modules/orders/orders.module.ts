@@ -14,6 +14,7 @@ import { PuntoEnvio, PuntoEnvioSchema } from '../../schemas/punto-envio.schema';
 import { PuntosVenta, PuntosVentaSchema } from '../../schemas/puntos-venta.schema';
 import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
+import { Salidas, SalidasSchema } from '../../schemas/salidas.schema';
 
 @Module({
   controllers: [OrdersController],
@@ -35,6 +36,10 @@ import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
       {
         name: PuntosVenta.name,
         schema: PuntosVentaSchema,
+      },
+      {
+        name: Salidas.name,
+        schema: SalidasSchema,
       },
     ]),
     UsersModule,
