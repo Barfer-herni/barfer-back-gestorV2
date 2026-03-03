@@ -17,7 +17,7 @@ import { SearchAreaResponseDto } from './dto/search-area-response.dto';
 
 @Controller('delivery-areas')
 export class DeliveryAreasController {
-  constructor(private readonly deliveryAreasService: DeliveryAreasService) {}
+  constructor(private readonly deliveryAreasService: DeliveryAreasService) { }
 
   @Post('/new')
   @Auth(Roles.Admin)
@@ -34,6 +34,12 @@ export class DeliveryAreasController {
   @Auth(Roles.Admin)
   findAllAdmin() {
     return this.deliveryAreasService.findAllAdmin();
+  }
+
+  @Get('with-punto-envio')
+  // @Auth(Roles.Admin)
+  getWithPuntoEnvio() {
+    return this.deliveryAreasService.getDeliveryAreasWithPuntoEnvio();
   }
 
   @Get(':id')

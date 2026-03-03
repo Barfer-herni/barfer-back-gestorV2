@@ -446,15 +446,6 @@ export class OrdersService {
 
         const matchingPrice = allPrices.find((p: any) => matchesProduct(p) && p.price > 0);
         const fallbackPrice = !matchingPrice ? allPrices.find((p: any) => matchesProduct(p)) : null;
-
-        if (!matchingPrice && !fallbackPrice) {
-          console.warn(`[calculatePrice] No match found for item: ${nameToCheck} | section: ${section} | product: ${product} | weight: ${weight} | priceType: ${priceType}`);
-        } else if (!matchingPrice && fallbackPrice) {
-          console.log(`[calculatePrice] Only fallback price (0 or less) found for item: ${nameToCheck}`);
-        } else {
-          console.log(`[calculatePrice] Price match found for ${nameToCheck}: ${matchingPrice.price}`);
-        }
-
         const unitPrice = matchingPrice ? matchingPrice.price : (fallbackPrice ? fallbackPrice.price : 0);
 
         const quantity = item.options?.reduce((sum, opt) => sum + (opt.quantity || 1), 0) || 1;
@@ -1086,6 +1077,56 @@ export class OrdersService {
     } catch (error) {
       console.error('Error updating estado envio:', error);
       throw new InternalServerErrorException('Could not update estado envio.');
+    }
+  }
+
+  async countOrdersByDay(puntoEnvio: string, date: string | Date): Promise<number> {
+    try {
+      const targetDate = typeof date === 'string' ? new Date(date) : date;
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const count = await this.orderModel.countDocuments({
+        puntoEnvio,
+        $or: [
+          {
+            deliveryDay: {
+              $gte: startOfDay,
+              $lte: endOfDay,
+            },
+          },
+          {
+            $and: [
+              { deliveryDay: { $exists: false } },
+              {
+                createdAt: {
+                  $gte: startOfDay,
+                  $lte: endOfDay,
+                },
+              },
+            ],
+          },
+          {
+            $and: [
+              { deliveryDay: null },
+              {
+                createdAt: {
+                  $gte: startOfDay,
+                  $lte: endOfDay,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      return count;
+    } catch (error) {
+      console.error('Error counting orders by day:', error);
+      return 0;
     }
   }
 

@@ -4,8 +4,8 @@ import { Document, Types } from 'mongoose';
 @Schema({ timestamps: true, collection: 'stock' })
 export class Stock extends Document {
 
-    @Prop({ type: Types.ObjectId, ref: 'PuntoEnvio', required: true })
-    puntoEnvioId: Types.ObjectId;
+    @Prop({ type: String, required: true })
+    puntoEnvio: string;
 
     @Prop({ required: true })
     producto: string;
@@ -26,7 +26,7 @@ export class Stock extends Document {
     stockFinal: number;
 
     @Prop({ required: true })
-    fecha: Date;
+    fecha: string;
 
     @Prop()
     createdAt: Date;

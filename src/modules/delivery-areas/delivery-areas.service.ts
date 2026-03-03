@@ -212,4 +212,16 @@ export class DeliveryAreasService {
 
     return coordinates;
   }
+
+  async getDeliveryAreasWithPuntoEnvio() {
+    try {
+      return await this.deliveryAreaModel.find({
+        puntoEnvio: { $exists: true, $ne: null, $nin: ['', null] }
+      }).sort({ puntoEnvio: 1 }).exec();
+    } catch (error) {
+      console.error('ERROR al obtener delivery areas con puntoEnvio: ', error);
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
 }

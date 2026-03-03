@@ -158,4 +158,14 @@ export class OrdersController {
   ) {
     return this.ordersService.updateEstadoEnvioAction(id, estadoEnvio);
   }
+
+  @Get('count-by-day')
+  // @Auth(Roles.User)
+  countOrdersByDay(
+    @Query('puntoEnvio') puntoEnvio: string,
+    @Query('date') date: string,
+  ) {
+    return this.ordersService.countOrdersByDay(puntoEnvio, date);
+  }
+
 }

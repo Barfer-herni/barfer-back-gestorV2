@@ -11,3 +11,11 @@ export interface StockData {
     createdAt: string;
     updatedAt: string;
 }
+
+export type PriceSection = 'PERRO' | 'GATO' | 'OTROS' | 'RAW';
+export interface ProductForStock {
+    section: PriceSection;
+    product: string;
+    weight: string | null;
+    formattedName: string; // "section - product - weight" o "section - product"
+}
