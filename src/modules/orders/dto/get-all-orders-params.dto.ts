@@ -1,5 +1,5 @@
 import { IsOptional, IsString, IsNumber, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class GetAllOrdersParamsDto {
     @IsOptional()
@@ -7,6 +7,16 @@ export class GetAllOrdersParamsDto {
     search?: string;
 
     @IsOptional()
+    @Transform(({ value }) => {
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch (e) {
+                return value;
+            }
+        }
+        return value;
+    })
     @IsArray()
     sorting?: { id: string; desc: boolean }[];
 
@@ -26,4 +36,14 @@ export class GetAllOrdersParamsDto {
     @Type(() => Number)
     @IsNumber()
     limit?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    page?: number;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    pageSize?: number;
 }

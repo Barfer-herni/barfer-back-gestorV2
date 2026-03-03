@@ -70,13 +70,6 @@ export class OrdersController {
   @Get('all')
   @Auth(Roles.User)
   getAll(@Query() params: GetAllOrdersParamsDto) {
-    if (params.sorting && typeof params.sorting === 'string') {
-      try {
-        params.sorting = JSON.parse(params.sorting);
-      } catch (e) {
-        params.sorting = undefined;
-      }
-    }
     return this.ordersService.getAllOrders(params);
   }
 

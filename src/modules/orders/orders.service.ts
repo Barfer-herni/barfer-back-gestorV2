@@ -485,7 +485,9 @@ export class OrdersService {
     to,
     orderType,
     limit,
-  }: GetAllOrdersParams): Promise<Order[]> {
+    page = 0,
+    pageSize = 50,
+  }: GetAllOrdersParams): Promise<{ orders: Order[]; total: number }> {
     try {
       const baseFilter: any = {};
 
@@ -620,21 +622,44 @@ export class OrdersService {
       }
       const matchQuery = { $and: finalAnd };
 
+      // Build Sort Query safely
       const sortQuery: any = {};
-      sorting.forEach((sort) => {
-        sortQuery[sort.id] = sort.desc ? -1 : 1;
-      });
+      if (Array.isArray(sorting)) {
+        sorting.forEach((sort) => {
+          if (sort && sort.id) {
+            sortQuery[sort.id] = sort.desc ? -1 : 1;
+          }
+        });
+      }
 
-      let query = this.orderModel.find(matchQuery).sort(sortQuery);
+      // If no valid sorting, default to createdAt desc
+      if (Object.keys(sortQuery).length === 0) {
+        sortQuery.createdAt = -1;
+      }
 
-      if (limit && limit > 0) {
+      // Count total matches for pagination
+      const total = await this.orderModel.countDocuments(matchQuery);
+
+      let query = this.orderModel.find(matchQuery).sort(sortQuery).allowDiskUse(true);
+
+      // Apply pagination
+      if (page !== undefined && pageSize !== undefined) {
+        query = query.skip(page * pageSize).limit(pageSize);
+      } else if (limit && limit > 0) {
         query = query.limit(limit);
       }
 
       const orders = await query.exec();
-      return orders;
+      return { orders, total };
     } catch (error) {
-      throw new InternalServerErrorException('Could not fetch orders for export.');
+      console.error('Error in getAllOrders:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        params: { search, from, to, orderType, limit, page, pageSize }
+      });
+      throw new InternalServerErrorException(
+        error instanceof Error ? `Could not fetch orders: ${error.message}` : 'Could not fetch orders for export.'
+      );
     }
   }
 

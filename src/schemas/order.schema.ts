@@ -118,3 +118,6 @@ export class Order {
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
+
+OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ deliveryDay: -1 });
