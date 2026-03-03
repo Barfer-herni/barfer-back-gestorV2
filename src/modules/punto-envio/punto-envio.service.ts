@@ -62,7 +62,7 @@ export class PuntoEnvioService {
     error?: string;
   }> {
     try {
-      const puntosEnvio = await this.puntoEnvioModel.find({}).sort({ createdAt: -1 })
+      const puntosEnvio = await this.puntoEnvioModel.find()
       const formatted = puntosEnvio.map((doc) => ({
         _id: doc._id.toString(),
         nombre: doc.nombre || '',

@@ -69,3 +69,46 @@ export function normalizeDeliveryDay(dateInput: any): Date {
     const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     return localDate;
 }
+
+export function validateAndNormalizePhone(phone: string): string | null {
+    if (!phone) return null;
+
+    let cleanPhone = phone.toString().trim();
+    cleanPhone = cleanPhone.replace(/[^\d-]/g, '');
+    let digitsOnly = cleanPhone.replace(/-/g, '');
+
+    const prefixesToRemove = ['549', '54', '0', '0221'];
+
+    for (const prefix of prefixesToRemove) {
+        if (digitsOnly.startsWith(prefix)) {
+            digitsOnly = digitsOnly.substring(prefix.length);
+            break;
+        }
+    }
+
+    if (digitsOnly.startsWith('9')) {
+        digitsOnly = digitsOnly.substring(1);
+    }
+
+    if (digitsOnly.length < 7 || digitsOnly.length > 10) {
+        return null;
+    }
+
+    if (digitsOnly.startsWith('221') || digitsOnly.startsWith('11') || digitsOnly.startsWith('15')) {
+        return digitsOnly;
+    }
+
+    if (digitsOnly.length === 7) {
+        return '221' + digitsOnly;
+    }
+
+    if (digitsOnly.length === 8) {
+        return '11' + digitsOnly;
+    }
+
+    if (digitsOnly.length === 10) {
+        return digitsOnly;
+    }
+
+    return null;
+}

@@ -7,7 +7,7 @@ import * as bcrypt from 'bcryptjs';
 
 import { CreateUserGestorDto } from './dto/users-gestor.dto';
 import { UpdateUserGestorDto } from './dto/update.dto';
-import { UserGestor } from 'src/schemas/user-gestor.schema';
+import { UserGestor } from '../../schemas/user-gestor.schema';
 
 @Injectable()
 export class UsersGestorService {

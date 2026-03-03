@@ -16,14 +16,14 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { PuntoEnvioDto } from './dto/punto-envio.dto';
 import { UpdatePuntoEnvioDto } from './dto/update.dto';
 import { PuntoEnvioService } from './punto-envio.service';
-import { PuntoEnvio } from 'src/schemas/punto-envio.schema';
+import { PuntoEnvio } from '../../schemas/punto-envio.schema';
 
 @Controller('puntos-envio')
 export class PuntoEnvioController {
   constructor(private readonly puntoEnvioService: PuntoEnvioService) { }
 
   @Get()
-  @Auth(Roles.User)
+  // @Auth(Roles.User)
   getAll() {
     return this.puntoEnvioService.getAllPuntosEnvio();
   }

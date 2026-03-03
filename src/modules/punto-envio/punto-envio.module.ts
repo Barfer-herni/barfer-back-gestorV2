@@ -9,7 +9,7 @@ import { DiscountsModule } from '../discounts/discounts.module';
 import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
 import { PuntoEnvioController } from './punto-envio.controller';
 import { PuntoEnvioService } from './punto-envio.service';
-import { PuntoEnvioSchema, PuntoEnvio } from 'src/schemas/punto-envio.schema';
+import { PuntoEnvioSchema, PuntoEnvio } from '../../schemas/punto-envio.schema';
 import { OrdersModule } from '../orders/orders.module';
 import { forwardRef } from '@nestjs/common';
 import { MayoristasModule } from '../mayoristas/mayoristas.module';

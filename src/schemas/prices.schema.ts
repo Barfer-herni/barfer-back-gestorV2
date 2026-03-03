@@ -57,6 +57,9 @@ export class Prices extends Document {
     @Prop({ required: true })
     updatedAt: string;
 
+    @Prop({ type: Date, required: false })
+    validFrom?: Date;
+
 }
 
 export const PricesSchema = SchemaFactory.createForClass(Prices);

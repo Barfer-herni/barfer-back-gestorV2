@@ -35,6 +35,7 @@ export class PricesService {
             product: 1,
             weight: 1,
             priceType: 1,
+            validFrom: -1,
             effectiveDate: -1
           }
         }
@@ -78,6 +79,7 @@ export class PricesService {
           product: 1,
           weight: 1,
           priceType: 1,
+          validFrom: -1,
           effectiveDate: -1
         }
       }).exec();
@@ -120,7 +122,7 @@ export class PricesService {
       }
 
       const prices = await this.pricesModel.find(filter, null, {
-        sort: { effectiveDate: -1 }
+        sort: { validFrom: -1, effectiveDate: -1 }
       }).exec();
 
       const history: PriceHistory = {
@@ -163,6 +165,7 @@ export class PricesService {
       const newPrice = new this.pricesModel({
         ...data,
         effectiveDate,
+        validFrom: data.validFrom || new Date(),
         isActive: data.isActive ?? true,
         month: effectiveDateObj.getUTCMonth() + 1,
         year: effectiveDateObj.getUTCFullYear(),
@@ -569,7 +572,7 @@ export class PricesService {
             effectiveDate: { $lte: new Date().toISOString().split('T')[0] }
           }
         },
-        { $sort: { effectiveDate: -1, createdAt: -1 } },
+        { $sort: { validFrom: -1, effectiveDate: -1, createdAt: -1 } },
         {
           $group: {
             _id: { section: "$section", product: "$product", weight: "$weight", priceType: "$priceType" },

@@ -62,7 +62,7 @@ export class OrdersController {
   }
 
   @Patch(':id')
-  @Auth(Roles.User)
+  // @Auth(Roles.User)
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
     return this.ordersService.updateOrder(id, data);
   }
@@ -109,5 +109,53 @@ export class OrdersController {
   @Auth(Roles.User)
   delete(@Param('id') id: string) {
     return this.ordersService.deleteOrder(id);
+  }
+
+  @Get('express')
+  // @Auth(Roles.User)
+  getExpressOrders(
+    @Query('puntoEnvio') puntoEnvio?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.ordersService.getExpressOrders(puntoEnvio, from, to);
+  }
+
+  @Get('priority')
+  // @Auth(Roles.User)
+  getOrderPriority(
+    @Query('fecha') fecha: string,
+    @Query('puntoEnvio') puntoEnvio: string,
+  ) {
+    return this.ordersService.getOrderPriority(fecha, puntoEnvio);
+  }
+
+  @Post('express/:id/duplicate')
+  // @Auth(Roles.User)
+  duplicateExpressOrder(
+    @Param('id') id: string,
+    @Body('targetPuntoEnvio') targetPuntoEnvio: string,
+    @Req() req: Request,
+  ) {
+    return this.ordersService.duplicateExpressOrderAction(id, targetPuntoEnvio, (req as any).user);
+  }
+
+  @Post('priority')
+  @Auth(Roles.User)
+  saveOrderPriority(
+    @Body('fecha') fecha: string,
+    @Body('puntoEnvio') puntoEnvio: string,
+    @Body('orderIds') orderIds: string[],
+  ) {
+    return this.ordersService.saveOrderPriorityAction(fecha, puntoEnvio, orderIds);
+  }
+
+  @Patch(':id/estado-envio')
+  @Auth(Roles.User)
+  updateEstadoEnvio(
+    @Param('id') id: string,
+    @Body('estadoEnvio') estadoEnvio: string,
+  ) {
+    return this.ordersService.updateEstadoEnvioAction(id, estadoEnvio);
   }
 }

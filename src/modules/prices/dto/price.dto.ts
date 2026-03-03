@@ -43,5 +43,8 @@ export class PriceDto {
   @IsString()
   effectiveDate?: string;
 
+  @IsOptional()
+  validFrom?: string | Date;
+
 }
 

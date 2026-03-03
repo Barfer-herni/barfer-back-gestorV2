@@ -17,6 +17,7 @@ import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { PuntoEnvioModule } from '../punto-envio/punto-envio.module';
 import { PricesModule } from '../prices/prices.module';
 import { Salidas, SalidasSchema } from '../../schemas/salidas.schema';
+import { OrderPriority, OrderPrioritySchema } from '../../schemas/order_priority-schema';
 
 @Module({
   controllers: [OrdersController],
@@ -46,6 +47,10 @@ import { Salidas, SalidasSchema } from '../../schemas/salidas.schema';
       {
         name: Salidas.name,
         schema: SalidasSchema,
+      },
+      {
+        name: OrderPriority.name,
+        schema: OrderPrioritySchema,
       },
     ]),
     UsersModule,

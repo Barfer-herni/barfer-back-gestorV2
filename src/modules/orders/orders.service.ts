@@ -28,12 +28,13 @@ import { UsersService } from '../users/users.service';
 import { FindOptionsDto } from './dto/find-options.dto';
 import { OrderDto } from './dto/order.dto';
 import { UpdateOrderDto } from './dto/update.dto';
-import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems } from './orders.helpers';
+import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems, validateAndNormalizePhone } from './orders.helpers';
 import { MayoristasService } from '../mayoristas/mayoristas.service';
 import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
 import { PricesService } from '../prices/prices.service';
 import { Types } from 'mongoose';
 import { GetAllOrdersParams } from './interfaces/gett-all-orders-params';
+import { OrderPriority } from '../../schemas/order_priority-schema';
 
 
 @Injectable()
@@ -43,6 +44,7 @@ export class OrdersService {
     @InjectModel(OrderBackup.name) private readonly orderBackupModel: Model<OrderBackup>,
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
     @InjectModel(Salidas.name) private readonly salidasModel: Model<Salidas>,
+    @InjectModel(OrderPriority.name) private readonly orderPriorityModel: Model<OrderPriority>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
@@ -351,27 +353,38 @@ export class OrdersService {
     error?: string;
   }> {
     try {
-      // Determinar el priceType según orderType y paymentMethod
       let priceType: string;
       if (orderType === 'mayorista') {
         priceType = 'MAYORISTA';
       } else if (paymentMethod === 'efectivo' || paymentMethod === 'cash') {
         priceType = 'EFECTIVO';
+      } else if (
+        paymentMethod === 'transferencia' ||
+        paymentMethod === 'transfer' ||
+        paymentMethod === 'bank-transfer' ||
+        paymentMethod === 'mercado-pago' ||
+        paymentMethod === 'mercado-pago'
+      ) {
+        priceType = 'TRANSFERENCIA';
       } else {
         priceType = 'TRANSFERENCIA';
       }
 
-      // Obtener TODOS los precios (incluye historial) ordenados por effectiveDate desc
       const pricesResult = await this.pricesService.getAllPrices();
       if (!pricesResult.success || !pricesResult.prices) {
         return { success: false, error: 'No se pudieron obtener los precios' };
       }
-
-      // Ordenar por effectiveDate descendente para que el más reciente esté primero
       const allPrices = [...pricesResult.prices].sort((a: any, b: any) => {
-        const dateA = a.effectiveDate || '';
-        const dateB = b.effectiveDate || '';
-        return dateB.localeCompare(dateA);
+        const dateA = a.validFrom ? new Date(a.validFrom).getTime() : (a.effectiveDate ? new Date(a.effectiveDate).getTime() : 0);
+        const dateB = b.validFrom ? new Date(b.validFrom).getTime() : (b.effectiveDate ? new Date(b.effectiveDate).getTime() : 0);
+
+        if (dateB !== dateA) {
+          return dateB - dateA;
+        }
+
+        const createA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return createB - createA;
       });
 
       const itemPrices: Array<{
@@ -384,7 +397,6 @@ export class OrdersService {
       let total = 0;
 
       for (const item of items) {
-        // Determinar section, product y weight a partir del fullName o del name
         let section: string | null = null;
         let product: string | null = null;
         let weight: string | null = null;
@@ -396,13 +408,23 @@ export class OrdersService {
           section = parts[0]?.trim().toUpperCase() || null;
           product = parts[1]?.trim().toUpperCase() || null;
           weight = parts[2]?.trim().toUpperCase() || null;
+        } else if (nameToCheck && nameToCheck.toUpperCase().startsWith('BOX ')) {
+          const boxParts = nameToCheck.split(' ');
+          const potentialSection = boxParts[1]?.toUpperCase();
+          const knownSections = ['PERRO', 'GATO', 'RAW', 'OTROS'];
+
+          if (knownSections.includes(potentialSection)) {
+            section = potentialSection;
+            product = boxParts.slice(2).join(' ').trim().toUpperCase();
+          } else {
+            product = nameToCheck.substring(4).trim().toUpperCase();
+          }
+          weight = item.options?.[0]?.name?.toUpperCase() || null;
         } else {
-          // Intentar buscar por nombre directo
           product = item.name?.toUpperCase() || null;
           weight = item.options?.[0]?.name?.toUpperCase() || null;
         }
 
-        // Helper para matchear producto
         const matchesProduct = (p: any) => {
           const pSection = (p.section || '').toUpperCase();
           const pProduct = (p.product || '').toUpperCase();
@@ -422,14 +444,19 @@ export class OrdersService {
           );
         };
 
-        // Buscar el precio más reciente con price > 0
         const matchingPrice = allPrices.find((p: any) => matchesProduct(p) && p.price > 0);
-        // Fallback: si no hay precio > 0, usar el más reciente (puede ser 0)
         const fallbackPrice = !matchingPrice ? allPrices.find((p: any) => matchesProduct(p)) : null;
+
+        if (!matchingPrice && !fallbackPrice) {
+          console.warn(`[calculatePrice] No match found for item: ${nameToCheck} | section: ${section} | product: ${product} | weight: ${weight} | priceType: ${priceType}`);
+        } else if (!matchingPrice && fallbackPrice) {
+          console.log(`[calculatePrice] Only fallback price (0 or less) found for item: ${nameToCheck}`);
+        } else {
+          console.log(`[calculatePrice] Price match found for ${nameToCheck}: ${matchingPrice.price}`);
+        }
 
         const unitPrice = matchingPrice ? matchingPrice.price : (fallbackPrice ? fallbackPrice.price : 0);
 
-        // Calcular cantidad total del item
         const quantity = item.options?.reduce((sum, opt) => sum + (opt.quantity || 1), 0) || 1;
 
         const subtotal = unitPrice * quantity;
@@ -443,7 +470,6 @@ export class OrdersService {
           subtotal,
         });
       }
-
       return {
         success: true,
         total,
@@ -856,6 +882,212 @@ export class OrdersService {
 
 
 
+  async getExpressOrders(puntoEnvio?: string, from?: string, to?: string): Promise<Order[]> {
+    try {
+      const filter: any = {
+        $or: [
+          { paymentMethod: 'bank-transfer' },
+          { 'deliveryArea.sameDayDelivery': true },
+          { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+        ]
+      };
+      if (puntoEnvio) filter.puntoEnvio = puntoEnvio;
+      if (from && from.trim() !== '' || to && to.trim() !== '') {
+        // Si solo hay "from", tratar como día único (evitar devolver todos los días futuros)
+        const fromVal = from?.trim() || '';
+        const toVal = to?.trim() || fromVal;
+
+        let fromDateUTC: Date | undefined;
+        let toDateUTC: Date | undefined;
+
+        if (fromVal) {
+          const [year, month, day] = fromVal.split('-').map(Number);
+          // 00:00:00 Arg Time = 03:00:00 UTC
+          fromDateUTC = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+        }
+        if (toVal) {
+          const [year, month, day] = toVal.split('-').map(Number);
+          // 23:59:59 Arg Time = 02:59:59 UTC of NEXT day
+          toDateUTC = new Date(Date.UTC(year, month - 1, day + 1, 2, 59, 59, 999));
+        }
+
+        // Para deliveryDay: día en UTC (00:00 a 23:59) para alinearse con el front (toISOString().substring(0,10))
+        let fromDeliveryUTC: Date | undefined;
+        let toDeliveryUTC: Date | undefined;
+        if (fromVal) {
+          const [year, month, day] = fromVal.split('-').map(Number);
+          fromDeliveryUTC = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+        }
+        if (toVal) {
+          const [year, month, day] = toVal.split('-').map(Number);
+          toDeliveryUTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+        }
+
+        filter.$and = [
+          {
+            $or: [
+              {
+                deliveryDay: {
+                  ...(fromDeliveryUTC && { $gte: fromDeliveryUTC }),
+                  ...(toDeliveryUTC && { $lte: toDeliveryUTC })
+                }
+              },
+              {
+                $and: [
+                  { deliveryDay: { $exists: false } },
+                  {
+                    createdAt: {
+                      ...(fromDateUTC && { $gte: fromDateUTC }),
+                      ...(toDateUTC && { $lte: toDateUTC })
+                    }
+                  }
+                ]
+              },
+              {
+                $and: [
+                  { deliveryDay: null },
+                  {
+                    createdAt: {
+                      ...(fromDateUTC && { $gte: fromDateUTC }),
+                      ...(toDateUTC && { $lte: toDateUTC })
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ];
+      }
+      const orders = await this.orderModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .exec();
+      return orders;
+    } catch (error) {
+      console.error('Error al obtener órdenes express:', error);
+      return [];
+    }
+  }
+
+  async getOrderPriority(fecha: string, puntoEnvio: string) {
+    try {
+      const orders = await this.orderPriorityModel.findOne({
+        fecha,
+        puntoEnvio
+      })
+
+      return { success: true, data: orders };
+    } catch (error) {
+      console.error('Error fetching order priority:', error);
+      throw new InternalServerErrorException('Could not fetch order priority.');
+    }
+  }
+
+
+
+  async duplicateExpressOrderAction(orderId: string, targetPuntoEnvio: string, user: any) {
+    try {
+      const originalOrder = await this.orderModel.findById(orderId);
+      if (!originalOrder) {
+        return { success: false, error: 'Orden no encontrada' };
+      }
+
+      const duplicatedOrderData = originalOrder.toObject();
+      delete (duplicatedOrderData as any)._id;
+      delete (duplicatedOrderData as any).__v;
+
+      if (duplicatedOrderData.address?.phone) {
+        const normalizedPhone = validateAndNormalizePhone(String(duplicatedOrderData.address.phone));
+        if (!normalizedPhone) {
+          return {
+            success: false,
+            error: 'El número de teléfono no es válido. Use el formato: La Plata (221 XXX-XXXX) o CABA/BA (11-XXXX-XXXX / 15-XXXX-XXXX)',
+          };
+        }
+        (duplicatedOrderData.address as any).phone = normalizedPhone;
+      }
+
+      let recalculatedTotal = duplicatedOrderData.total;
+      try {
+        const result = await this.calculatePrice(
+          (duplicatedOrderData.items || []) as any,
+          (duplicatedOrderData.orderType as 'minorista' | 'mayorista') || 'minorista',
+          duplicatedOrderData.paymentMethod || '',
+          duplicatedOrderData.deliveryDay as any
+        );
+        if (result.success && result.total !== undefined) {
+          recalculatedTotal = result.total;
+        }
+      } catch (error) {
+        console.error('Error recalculando precio al duplicar:', error);
+      }
+
+      const modifiedOrderData = {
+        ...duplicatedOrderData,
+        status: 'pending',
+        estadoEnvio: 'pendiente',
+        puntoEnvio: targetPuntoEnvio,
+        notesOwn: `DUPLICADO - ${duplicatedOrderData.notesOwn || ''}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        total: recalculatedTotal,
+      };
+
+      if (modifiedOrderData.deliveryArea) {
+        modifiedOrderData.deliveryArea.sheetName = modifiedOrderData.deliveryArea.sheetName || '';
+        modifiedOrderData.deliveryArea.whatsappNumber = modifiedOrderData.deliveryArea.whatsappNumber || '';
+      }
+
+      if (modifiedOrderData.address) {
+        modifiedOrderData.address.betweenStreets = modifiedOrderData.address.betweenStreets || '';
+        modifiedOrderData.address.floorNumber = modifiedOrderData.address.floorNumber || '';
+        modifiedOrderData.address.departmentNumber = modifiedOrderData.address.departmentNumber || '';
+        modifiedOrderData.address.reference = modifiedOrderData.address.reference || '';
+      }
+
+      const newOrder = new this.orderModel(modifiedOrderData);
+      const savedOrder = await newOrder.save();
+
+      return {
+        success: true,
+        order: savedOrder,
+        message: `Pedido duplicado correctamente en ${targetPuntoEnvio}`,
+      };
+
+    } catch (error) {
+      console.error('Error in duplicateExpressOrderAction:', error);
+      return { success: false, error: 'Error al duplicar la orden' };
+    }
+  }
+
+
+  async saveOrderPriorityAction(fecha: string, puntoEnvio: string, orderIds: string[]) {
+    try {
+      const result = await this.orderPriorityModel.findOneAndUpdate(
+        { fecha, puntoEnvio },
+        { $set: { orderIds, updatedAt: new Date() } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Error saving order priority:', error);
+      throw new InternalServerErrorException('Could not save order priority.');
+    }
+  }
+
+  async updateEstadoEnvioAction(orderId: string, estadoEnvio: string) {
+    try {
+      const result = await this.orderModel.findByIdAndUpdate(
+        orderId,
+        { $set: { estadoEnvio, updatedAt: new Date() } },
+        { new: true }
+      );
+      return { success: true, order: result };
+    } catch (error) {
+      console.error('Error updating estado envio:', error);
+      throw new InternalServerErrorException('Could not update estado envio.');
+    }
+  }
 
 }
 

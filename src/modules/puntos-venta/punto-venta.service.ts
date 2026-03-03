@@ -10,7 +10,7 @@ import {
 } from './interfaces/punto-venta.interface';
 import { CreatePuntoVentaDto } from './dto/punto-venta.dto';
 import { UpdatePuntoVentaDto } from './dto/update.dto';
-import { PuntosVenta } from 'src/schemas/puntos-venta.schema';
+import { PuntosVenta } from '../../schemas/puntos-venta.schema';
 
 @Injectable()
 export class PuntosVentaService {

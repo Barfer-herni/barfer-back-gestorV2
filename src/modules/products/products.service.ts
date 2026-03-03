@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Option } from 'src/schemas/option.schema';
+import { Option } from '../../schemas/option.schema';
 import { DiscountDocument } from '../../schemas/discount.schema';
 import { Product } from '../../schemas/product.schema';
 import { CategoriesService } from '../categories/categories.service';
@@ -28,7 +28,7 @@ export class ProductsService {
     @Inject(forwardRef(() => OptionsService))
     private optionService: OptionsService,
     private readonly discountsService: DiscountsService,
-  ) {}
+  ) { }
 
   async create(createProductDto: ProductDto) {
     const product: any = await this.findProductByName(createProductDto.name);
@@ -409,7 +409,7 @@ export class ProductsService {
 
     const frontendBaseUrl = this.configService.get('env.frontend_base_url');
     const feedItems: GoogleMerchantFeedItemDto[] = [];
-    
+
     allProducts.forEach((product: Product & { _id: Types.ObjectId }) => {
       const imageLink =
         product.images && product.images.length > 0 ? product.images[0] : '';
@@ -419,11 +419,11 @@ export class ProductsService {
       if (product.options && product.options.length > 0) {
         product.options.forEach((option: Option & { _id: Types.ObjectId }) => {
           const availability = (option.stock && option.stock > 0) ? 'in stock' : 'out of stock';
-          
+
           const priceFormatted = option.price ? `${option.price} ARS` : '0 ARS';
-          
+
           const title = `${product.name} - ${option.name}`;
-          
+
           const uniqueId = `${product._id.toString()}_${option._id.toString()}`;
 
           feedItems.push({

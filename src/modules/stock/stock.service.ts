@@ -249,4 +249,9 @@ export class StockService {
             return { success: false, message: 'Error al eliminar el stock', error: 'DELETE_STOCK_ERROR' };
         }
     }
+
+
+    async initializeStockForDateAction() {
+
+    }
 }
