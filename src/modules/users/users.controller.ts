@@ -6,7 +6,7 @@ import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly userService: UsersService) {}
+  constructor(private readonly userService: UsersService) { }
 
   @Get('get-all')
   @Auth(Roles.Admin)
@@ -42,5 +42,13 @@ export class UsersController {
   @Auth(Roles.Admin)
   getAdminByEmail(@Param('email') email: string) {
     return this.userService.findOneByEmail(email);
+  }
+
+
+
+  @Get('analytics')
+  @Auth(Roles.Admin)
+  getAnalytics() {
+    return this.userService.getClientAnalytics();
   }
 }
