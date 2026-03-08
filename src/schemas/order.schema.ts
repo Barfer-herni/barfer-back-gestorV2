@@ -115,6 +115,11 @@ export class Order {
     required: false,
   })
   notesOwn?: string;
+
+  @Prop({
+    required: false,
+  })
+  punto_de_venta?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

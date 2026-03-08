@@ -80,6 +80,79 @@ export class SalidasController {
         return this.salidasService.getSalidasByDateRange(new Date(startDate), new Date(endDate));
     }
 
+    // ── Analytics ──────────────────────────────────────────────────────────────
+
+    /**
+     * GET /salidas/analytics/category?startDate=&endDate=
+     * Estadisticas por categoria (para grafico de torta).
+     */
+    @Get('analytics/category')
+    getCategoryAnalytics(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.salidasService.getSalidasCategoryAnalytics(
+            startDate ? new Date(startDate) : undefined,
+            endDate ? new Date(endDate) : undefined,
+        );
+    }
+
+    /**
+     * GET /salidas/analytics/type?startDate=&endDate=
+     * Estadisticas por tipo (ORDINARIO vs EXTRAORDINARIO).
+     */
+    @Get('analytics/type')
+    getTypeAnalytics(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.salidasService.getSalidasTypeAnalytics(
+            startDate ? new Date(startDate) : undefined,
+            endDate ? new Date(endDate) : undefined,
+        );
+    }
+
+    /**
+     * GET /salidas/analytics/monthly?categoriaId=&startDate=&endDate=
+     * Estadisticas por mes con detalle por categoria.
+     */
+    @Get('analytics/monthly')
+    getMonthlyAnalytics(
+        @Query('categoriaId') categoriaId?: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.salidasService.getSalidasMonthlyAnalytics(
+            categoriaId,
+            startDate ? new Date(startDate) : undefined,
+            endDate ? new Date(endDate) : undefined,
+        );
+    }
+
+    /**
+     * GET /salidas/analytics/overview?startDate=&endDate=
+     * Resumen general de salidas.
+     */
+    @Get('analytics/overview')
+    getOverviewAnalytics(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.salidasService.getSalidasOverviewAnalytics(
+            startDate ? new Date(startDate) : undefined,
+            endDate ? new Date(endDate) : undefined,
+        );
+    }
+
+    /**
+     * GET /salidas/categorias
+     * Lista todas las categorias activas.
+     */
+    @Get('categorias')
+    getCategorias() {
+        return this.salidasService.getAllCategorias();
+    }
+
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.salidasService.getSalidaById(id);

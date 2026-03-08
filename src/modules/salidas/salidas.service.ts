@@ -9,6 +9,48 @@ import { CreateSalidaDto } from './dto/create-salida.dto';
 import { UpdateSalidaDto } from './dto/update-salida.dto';
 import { SalidaData, SalidasFilters } from './interfaces/salidas.interfaces';
 
+// ── Analytics interfaces ────────────────────────────────────────────────────
+
+export interface SalidaCategoryStats {
+    categoriaId: string;
+    categoriaNombre: string;
+    totalMonto: number;
+    cantidad: number;
+    porcentaje: number;
+}
+
+export interface SalidaTipoStats {
+    tipo: 'ORDINARIO' | 'EXTRAORDINARIO';
+    totalMonto: number;
+    cantidad: number;
+    porcentaje: number;
+}
+
+export interface SalidaMonthlyStats {
+    year: number;
+    month: number;
+    monthName: string;
+    totalMonto: number;
+    cantidad: number;
+    categorias: {
+        [key: string]: { nombre: string; monto: number; cantidad: number };
+    };
+}
+
+export interface SalidasAnalyticsSummary {
+    totalGasto: number;
+    totalSalidas: number;
+    gastoPromedio: number;
+    ordinarioVsExtraordinario: {
+        ordinario: { monto: number; cantidad: number; porcentaje: number };
+        extraordinario: { monto: number; cantidad: number; porcentaje: number };
+    };
+    blancoVsNegro: {
+        blanco: { monto: number; cantidad: number; porcentaje: number };
+        negro: { monto: number; cantidad: number; porcentaje: number };
+    };
+}
+
 @Injectable()
 export class SalidasService {
     constructor(
@@ -490,6 +532,285 @@ export class SalidasService {
         } catch (error) {
             console.error('Error in getSalidasByDateRange:', error);
             return { success: false, message: 'Error al obtener salidas por rango de fechas', error: 'GET_SALIDAS_BY_DATE_RANGE_ERROR' };
+        }
+    }
+
+    // ── Analytics ──────────────────────────────────────────────────────────────
+
+    /**
+     * Estadísticas de salidas agrupadas por categoría (para gráfico de torta).
+     */
+    async getSalidasCategoryAnalytics(
+        startDate?: Date,
+        endDate?: Date,
+    ): Promise<{ success: boolean; stats?: SalidaCategoryStats[]; message?: string; error?: string }> {
+        try {
+            const matchStage: any = {};
+            if (startDate || endDate) {
+                matchStage.fechaFactura = {};
+                if (startDate) matchStage.fechaFactura.$gte = startDate;
+                if (endDate) matchStage.fechaFactura.$lte = endDate;
+            }
+
+            const pipeline: any[] = [
+                ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
+                {
+                    $addFields: {
+                        categoriaIdObj: { $convert: { input: '$categoriaId', to: 'objectId', onError: null, onNull: null } },
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'categorias',
+                        localField: 'categoriaIdObj',
+                        foreignField: '_id',
+                        as: 'categoria',
+                    },
+                },
+                { $addFields: { categoria: { $arrayElemAt: ['$categoria', 0] } } },
+                {
+                    $group: {
+                        _id: '$categoriaId',
+                        categoriaNombre: { $first: '$categoria.nombre' },
+                        totalMonto: { $sum: '$monto' },
+                        cantidad: { $sum: 1 },
+                    },
+                },
+                { $sort: { totalMonto: -1 } },
+            ];
+
+            const results = await this.salidasModel.aggregate(pipeline).exec();
+            const totalMonto = results.reduce((acc, item) => acc + item.totalMonto, 0);
+
+            const stats: SalidaCategoryStats[] = results.map(item => ({
+                categoriaId: item._id?.toString() ?? '',
+                categoriaNombre: item.categoriaNombre ?? 'Categoría Desconocida',
+                totalMonto: item.totalMonto,
+                cantidad: item.cantidad,
+                porcentaje: totalMonto > 0
+                    ? Math.round((item.totalMonto / totalMonto) * 10000) / 100
+                    : 0,
+            }));
+
+            return { success: true, stats };
+        } catch (error) {
+            console.error('Error in getSalidasCategoryAnalytics:', error);
+            return { success: false, message: 'Error al obtener estadísticas por categoría', error: 'GET_SALIDAS_CATEGORY_ANALYTICS_ERROR' };
+        }
+    }
+
+    /**
+     * Estadísticas de salidas agrupadas por tipo (ORDINARIO vs EXTRAORDINARIO).
+     */
+    async getSalidasTypeAnalytics(
+        startDate?: Date,
+        endDate?: Date,
+    ): Promise<{ success: boolean; stats?: SalidaTipoStats[]; message?: string; error?: string }> {
+        try {
+            const matchStage: any = {};
+            if (startDate || endDate) {
+                matchStage.fechaFactura = {};
+                if (startDate) matchStage.fechaFactura.$gte = startDate;
+                if (endDate) matchStage.fechaFactura.$lte = endDate;
+            }
+
+            const pipeline: any[] = [
+                ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
+                {
+                    $group: {
+                        _id: '$tipo',
+                        totalMonto: { $sum: '$monto' },
+                        cantidad: { $sum: 1 },
+                    },
+                },
+            ];
+
+            const results = await this.salidasModel.aggregate(pipeline).exec();
+            const totalMonto = results.reduce((acc, item) => acc + item.totalMonto, 0);
+
+            const stats: SalidaTipoStats[] = results.map(item => ({
+                tipo: item._id as 'ORDINARIO' | 'EXTRAORDINARIO',
+                totalMonto: item.totalMonto,
+                cantidad: item.cantidad,
+                porcentaje: totalMonto > 0
+                    ? Math.round((item.totalMonto / totalMonto) * 10000) / 100
+                    : 0,
+            }));
+
+            return { success: true, stats };
+        } catch (error) {
+            console.error('Error in getSalidasTypeAnalytics:', error);
+            return { success: false, message: 'Error al obtener estadísticas por tipo', error: 'GET_SALIDAS_TYPE_ANALYTICS_ERROR' };
+        }
+    }
+
+    /**
+     * Estadísticas de salidas agrupadas por mes (con detalle por categoría).
+     */
+    async getSalidasMonthlyAnalytics(
+        categoriaId?: string,
+        startDate?: Date,
+        endDate?: Date,
+    ): Promise<{ success: boolean; stats?: SalidaMonthlyStats[]; message?: string; error?: string }> {
+        try {
+            const matchStage: any = {};
+            if (categoriaId) matchStage.categoriaId = categoriaId;
+            if (startDate || endDate) {
+                matchStage.fechaFactura = {};
+                if (startDate) matchStage.fechaFactura.$gte = startDate;
+                if (endDate) matchStage.fechaFactura.$lte = endDate;
+            }
+
+            const pipeline: any[] = [
+                ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
+                {
+                    $addFields: {
+                        categoriaIdObj: { $convert: { input: '$categoriaId', to: 'objectId', onError: null, onNull: null } },
+                    },
+                },
+                {
+                    $lookup: {
+                        from: 'categorias',
+                        localField: 'categoriaIdObj',
+                        foreignField: '_id',
+                        as: 'categoria',
+                    },
+                },
+                { $addFields: { categoria: { $arrayElemAt: ['$categoria', 0] } } },
+                { $sort: { fechaFactura: 1 } },
+            ];
+
+            const salidas = await this.salidasModel.aggregate(pipeline).exec();
+
+            const monthNames = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+            ];
+
+            const monthlyData: Record<string, SalidaMonthlyStats> = {};
+
+            for (const salida of salidas) {
+                const date = new Date(salida.fechaFactura);
+                const year = date.getFullYear();
+                const month = date.getMonth() + 1;
+                const key = `${year}-${month}`;
+
+                if (!monthlyData[key]) {
+                    monthlyData[key] = {
+                        year,
+                        month,
+                        monthName: monthNames[month - 1],
+                        totalMonto: 0,
+                        cantidad: 0,
+                        categorias: {},
+                    };
+                }
+
+                monthlyData[key].totalMonto += salida.monto;
+                monthlyData[key].cantidad += 1;
+
+                const cat = salida.categoria?.nombre ?? 'Sin Categoría';
+                if (!monthlyData[key].categorias[cat]) {
+                    monthlyData[key].categorias[cat] = { nombre: cat, monto: 0, cantidad: 0 };
+                }
+                monthlyData[key].categorias[cat].monto += salida.monto;
+                monthlyData[key].categorias[cat].cantidad += 1;
+            }
+
+            const stats = Object.values(monthlyData).sort((a, b) =>
+                a.year !== b.year ? a.year - b.year : a.month - b.month,
+            );
+
+            return { success: true, stats };
+        } catch (error) {
+            console.error('Error in getSalidasMonthlyAnalytics:', error);
+            return { success: false, message: 'Error al obtener estadísticas mensuales', error: 'GET_SALIDAS_MONTHLY_ANALYTICS_ERROR' };
+        }
+    }
+
+    /**
+     * Resumen general de salidas (totales, ordinario vs extraordinario, blanco vs negro).
+     */
+    async getSalidasOverviewAnalytics(
+        startDate?: Date,
+        endDate?: Date,
+    ): Promise<{ success: boolean; summary?: SalidasAnalyticsSummary; message?: string; error?: string }> {
+        try {
+            const matchStage: any = {};
+            if (startDate || endDate) {
+                matchStage.fechaFactura = {};
+                if (startDate) matchStage.fechaFactura.$gte = startDate;
+                if (endDate) matchStage.fechaFactura.$lte = endDate;
+            }
+
+            const salidas = await this.salidasModel
+                .find(Object.keys(matchStage).length > 0 ? matchStage : {})
+                .exec();
+
+            const totalSalidas = salidas.length;
+            const totalMonto = salidas.reduce((sum, s) => sum + s.monto, 0);
+
+            const salidasOrd = salidas.filter(s => s.tipo === 'ORDINARIO');
+            const salidasExt = salidas.filter(s => s.tipo === 'EXTRAORDINARIO');
+            const salidasBl = salidas.filter(s => s.tipoRegistro === 'BLANCO');
+            const salidasNeg = salidas.filter(s => s.tipoRegistro === 'NEGRO');
+
+            const montoOrd = salidasOrd.reduce((sum, s) => sum + s.monto, 0);
+            const montoExt = salidasExt.reduce((sum, s) => sum + s.monto, 0);
+            const montoBl = salidasBl.reduce((sum, s) => sum + s.monto, 0);
+            const montoNeg = salidasNeg.reduce((sum, s) => sum + s.monto, 0);
+
+            const pct = (n: number) =>
+                totalSalidas > 0 ? Math.round((n / totalSalidas) * 10000) / 100 : 0;
+
+            const summary: SalidasAnalyticsSummary = {
+                totalGasto: totalMonto,
+                totalSalidas,
+                gastoPromedio: totalSalidas > 0 ? totalMonto / totalSalidas : 0,
+                ordinarioVsExtraordinario: {
+                    ordinario: { monto: montoOrd, cantidad: salidasOrd.length, porcentaje: pct(salidasOrd.length) },
+                    extraordinario: { monto: montoExt, cantidad: salidasExt.length, porcentaje: pct(salidasExt.length) },
+                },
+                blancoVsNegro: {
+                    blanco: { monto: montoBl, cantidad: salidasBl.length, porcentaje: pct(salidasBl.length) },
+                    negro: { monto: montoNeg, cantidad: salidasNeg.length, porcentaje: pct(salidasNeg.length) },
+                },
+            };
+
+            return { success: true, summary };
+        } catch (error) {
+            console.error('Error in getSalidasOverviewAnalytics:', error);
+            return { success: false, message: 'Error al obtener el resumen general', error: 'GET_SALIDAS_OVERVIEW_ANALYTICS_ERROR' };
+        }
+    }
+
+    /**
+     * Obtiene todas las categorías activas.
+     */
+    async getAllCategorias(): Promise<{
+        success: boolean;
+        categorias?: { _id: string; nombre: string; descripcion: string | null; isActive: boolean }[];
+        total?: number;
+        message?: string;
+        error?: string;
+    }> {
+        try {
+            const categorias = await this.categoriasModel
+                .find({ isActive: true })
+                .sort({ nombre: 1 })
+                .exec();
+
+            const formatted = categorias.map(c => ({
+                _id: c._id.toString(),
+                nombre: c.nombre,
+                descripcion: (c as any).descripcion ?? null,
+                isActive: c.isActive,
+            }));
+
+            return { success: true, categorias: formatted, total: formatted.length };
+        } catch (error) {
+            console.error('Error in getAllCategorias:', error);
+            return { success: false, message: 'Error al obtener las categorías', error: 'GET_ALL_CATEGORIAS_ERROR' };
         }
     }
 }

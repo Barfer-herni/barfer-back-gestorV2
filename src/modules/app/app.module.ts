@@ -29,6 +29,7 @@ import { MayoristasModule } from '../mayoristas/mayoristas.module';
 import { CategoriasGestorModule } from '../categorias-gestor/categorias-gestor.module';
 import { MetodosPagoModule } from '../metodos-pago/metodos-pago.module';
 import { TemplatePricesProductsModule } from '../template_prices_products/template_prices_products.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { TemplatePricesProductsModule } from '../template_prices_products/templa
     CategoriasGestorModule,
     MetodosPagoModule,
     TemplatePricesProductsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

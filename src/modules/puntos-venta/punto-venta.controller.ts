@@ -22,6 +22,14 @@ export class PuntosVentaController {
     return this.service.createPuntoVenta(dto);
   }
 
+  @Get('stats')
+  getStats(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.getPuntosVentaStats(from, to);
+  }
+
   @Get()
   findAll(@Query() query: any) {
     return this.service.getPuntosVenta(query);
@@ -46,3 +54,4 @@ export class PuntosVentaController {
     return this.service.deletePuntoVenta(id);
   }
 }
+
