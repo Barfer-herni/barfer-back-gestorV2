@@ -30,7 +30,6 @@
     "@nestjs/mongoose": "^10.0.6",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.3.10",
-    "@nestjs/serve-static": "^5.0.4",
     "@turf/turf": "^7.0.0",
     "@types/mercadopago": "^1.5.11",
     "@types/uuid": "^10.0.0",
