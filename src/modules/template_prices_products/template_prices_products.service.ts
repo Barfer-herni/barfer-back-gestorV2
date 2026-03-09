@@ -1,6 +1,4 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
-    Inject,
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
@@ -14,7 +12,6 @@ import { TemplatePricesProducts } from '../../schemas/template_prices_products.s
 export class TemplatePricesProductsService {
     constructor(
         @InjectModel(TemplatePricesProducts.name) private readonly templateModel: Model<TemplatePricesProducts>,
-        @Inject(CACHE_MANAGER) private cacheManager: Cache,
     ) { }
 
     async findAll() {
@@ -34,7 +31,6 @@ export class TemplatePricesProductsService {
 
             const now = new Date().toISOString();
             await new this.templateModel({ section, product, weight: weight || null, priceTypes, createdAt: now, updatedAt: now }).save();
-            await this.cacheManager.reset();
             return { success: true };
         } catch (error) {
             console.error('Error adding to template:', error);
@@ -47,7 +43,6 @@ export class TemplatePricesProductsService {
             const filter = { section, product, weight: weight || null };
             const result = await this.templateModel.updateOne(filter, { $set: { priceTypes, updatedAt: new Date().toISOString() } });
             if (result.matchedCount === 0) return await this.addProduct(section, product, weight, priceTypes);
-            await this.cacheManager.reset();
             return { success: true };
         } catch (error) {
             console.error('Error updating template price types:', error);
@@ -58,7 +53,6 @@ export class TemplatePricesProductsService {
     async removeProduct(section: any, product: string, weight: string | undefined) {
         try {
             await this.templateModel.deleteOne({ section, product, weight: weight || null });
-            await this.cacheManager.reset();
             return { success: true };
         } catch (error) {
             console.error('Error removing from template:', error);
@@ -81,7 +75,6 @@ export class TemplatePricesProductsService {
             if (newData.weight !== undefined) updateData.weight = newData.weight || null;
 
             await this.templateModel.updateOne(filter, { $set: updateData });
-            await this.cacheManager.reset();
             return { success: true };
         } catch (error) {
             console.error('Error updating template product:', error);

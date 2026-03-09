@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +7,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { Category } from '../../schemas/category.schema';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Product } from '../../schemas/product.schema';
 
@@ -16,8 +14,7 @@ import { Product } from '../../schemas/product.schema';
 export class CategoriesService {
   constructor(
     @InjectModel(Category.name) private readonly categoryModel: Model<Category>,
-    @InjectModel(Product.name) private readonly productModel: Model<Product>, // Añadir el modelo de Product
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    @InjectModel(Product.name) private readonly productModel: Model<Product>,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
@@ -30,15 +27,7 @@ export class CategoriesService {
   }
 
   async findAll() {
-    const dataFromLocalCache = await this.cacheManager.get(`categories`);
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
-    const categories = await this.categoryModel.find({}).exec();
-    await this.cacheManager.set(`categories`, categories, 120000);
-
-    return categories;
+    return await this.categoryModel.find({}).exec();
   }
 
   async findOne(id: string) {
@@ -93,16 +82,6 @@ export class CategoriesService {
   }
 
   async findCategoryByName(name: string) {
-    const dataFromLocalCache = await this.cacheManager.get(
-      `${name}:categories`,
-    );
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
-    const category = await this.categoryModel.findOne({ name }).exec();
-    await this.cacheManager.set(`${name}:categories`, category, 120000);
-
-    return category;
+    return await this.categoryModel.findOne({ name }).exec();
   }
 }

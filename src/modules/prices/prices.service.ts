@@ -1,6 +1,4 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
-  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,7 +15,6 @@ import { TemplatePricesProductsService } from '../template_prices_products/templ
 export class PricesService {
   constructor(
     @InjectModel(Prices.name) private readonly pricesModel: Model<Prices>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly templatePricesProductsService: TemplatePricesProductsService,
   ) { }
 
@@ -204,8 +201,6 @@ export class PricesService {
         );
       }
 
-      await this.cacheManager.reset();
-
       return {
         success: true,
         price: newPrice,
@@ -247,8 +242,6 @@ export class PricesService {
         { new: true }
       );
 
-      await this.cacheManager.reset();
-
       return {
         success: true,
         price: updatedPrice,
@@ -278,8 +271,6 @@ export class PricesService {
           error: 'PRICE_NOT_FOUND'
         };
       }
-
-      await this.cacheManager.reset();
 
       return {
         success: true,
@@ -436,7 +427,6 @@ export class PricesService {
       }
       const result = await this.pricesModel.deleteMany(filter);
       await this.templatePricesProductsService.removeProduct(section as any, product, weight === null ? undefined : weight);
-      await this.cacheManager.reset();
 
       return {
         success: true,
@@ -484,7 +474,6 @@ export class PricesService {
       }
 
       const result = await this.pricesModel.updateMany(filter, updateOperation);
-      await this.cacheManager.reset();
 
       //editar tambien en el template
       await this.templatePricesProductsService.updateProduct(oldSection, oldProduct, oldWeight, newData);
@@ -551,7 +540,6 @@ export class PricesService {
       }
 
       await this.templatePricesProductsService.updatePriceTypes(section as any, product, weight || undefined, newPriceTypes as any);
-      await this.cacheManager.reset();
 
       return { success: true, addedCount, removedCount };
     } catch (error) {
@@ -658,7 +646,6 @@ export class PricesService {
       );
 
       const result = await this.pricesModel.insertMany(pricesToCreate);
-      await this.cacheManager.reset();
       return { success: true, created: result.length };
     } catch (error) {
       console.error('Error initializing period:', error);

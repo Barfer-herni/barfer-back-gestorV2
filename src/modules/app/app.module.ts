@@ -1,4 +1,3 @@
-import { CacheModule } from '@nestjs/cache-manager';
 import { Inject, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService, ConfigType } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -55,7 +54,6 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     AuthModule,
     UsersModule,
     CategoriesModule,
-    CacheModule.register({ isGlobal: true }),
     ProductsModule,
     AddressModule,
     DeliveryAreasModule,

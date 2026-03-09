@@ -1,7 +1,5 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
   BadRequestException,
-  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -45,7 +43,6 @@ export class OrdersService {
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
     @InjectModel(Salidas.name) private readonly salidasModel: Model<Salidas>,
     @InjectModel(OrderPriority.name) private readonly orderPriorityModel: Model<OrderPriority>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
     private readonly addressService: AddressService,

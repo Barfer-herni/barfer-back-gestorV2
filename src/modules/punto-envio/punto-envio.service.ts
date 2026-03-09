@@ -1,13 +1,10 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
   BadRequestException,
-  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
   ConflictException
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 import { Order } from '../../schemas/order.schema';
@@ -43,12 +40,10 @@ export class PuntoEnvioService {
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
     @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
     @InjectModel(PuntoEnvio.name) private readonly puntoEnvioModel: Model<PuntoEnvio>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
     private readonly addressService: AddressService,
     private readonly deliveryAreaService: DeliveryAreasService,
-    private readonly configService: ConfigService,
     private readonly optionsService: OptionsService,
     private readonly mayoristasService: MayoristasService,
   ) { }

@@ -1,10 +1,7 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
-  Inject,
   Injectable,
   NotFoundException
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Address } from '../../schemas/address.schema';
@@ -14,8 +11,6 @@ import { AddressDto } from './dto/address.dto';
 export class AddressService {
   constructor(
     @InjectModel(Address.name) private readonly addressModel: Model<Address>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly configService: ConfigService,
   ) {}
 
   async create(createAddressDto: AddressDto) {
@@ -23,19 +18,7 @@ export class AddressService {
   }
 
   async findAll() {
-    const address = await this.cacheManager.get(`address`);
-    if (address) {
-      return address;
-    }
-
-    const addressData = await this.addressModel.find({}).exec();
-    await this.cacheManager.set(
-      `address`,
-      addressData,
-      Number(this.configService.get<string>('CACHE_TTL')),
-    );
-
-    return addressData;
+    return await this.addressModel.find({}).exec();
   }
 
   async findOneById(id: string) {
@@ -48,41 +31,18 @@ export class AddressService {
   }
 
   async findOneByAddress(address: string) {
-    const dataFromLocalCache = await this.cacheManager.get(
-      `${address}:address`,
-    );
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
     const addressData = await this.addressModel.findOne({ address }).exec();
     if (!addressData) {
       return new NotFoundException('Address not found');
     }
-    await this.cacheManager.set(
-      `${address}:address`,
-      addressData,
-      Number(this.configService.get<string>('CACHE_TTL')),
-    );
     return addressData;
   }
 
   async findManyByUserId(userId: string) {
-    const dataFromLocalCache = await this.cacheManager.get(`${userId}:address`);
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
     const addressData = await this.addressModel.find({ userId }).exec();
     if (!addressData) {
       return new NotFoundException('Address not found');
     }
-
-    await this.cacheManager.set(
-      `${userId}:address`,
-      addressData,
-      Number(this.configService.get<string>('CACHE_TTL')),
-    );
     return addressData;
   }
 

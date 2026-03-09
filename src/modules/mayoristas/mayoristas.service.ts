@@ -1,6 +1,4 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
-    Inject,
     Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,7 +17,6 @@ import { UpdateMayoristaDto } from './dto/update-mayorista.dto';
 export class MayoristasService {
     constructor(
         @InjectModel(Mayoristas.name) private readonly mayoristasModel: Model<Mayoristas>,
-        @Inject(CACHE_MANAGER) private cacheManager: Cache,
         private readonly usersService: UsersService,
         private readonly productsService: ProductsService,
         private readonly addressService: AddressService,

@@ -1,6 +1,4 @@
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../schemas/user.schema';
@@ -13,8 +11,6 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly configService: ConfigService,
   ) { }
 
   async create(user: UserDto) {
@@ -46,33 +42,14 @@ export class UsersService {
   }
 
   async findAll() {
-    const dataFromLocalCache = await this.cacheManager.get(`users`);
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
-    const users = await this.userModel.find().exec();
-    await this.cacheManager.set(`users`, users, 120000);
-
-    return users;
+    return await this.userModel.find().exec();
   }
 
   async findById(id: string) {
-    const dataFromLocalCache = await this.cacheManager.get(`users-${id}`);
-    if (dataFromLocalCache) {
-      return dataFromLocalCache;
-    }
-
     const user = await this.userModel.findById(id).exec();
     if (!user) {
       throw new NotFoundException('User not found');
     }
-
-    await this.cacheManager.set(
-      `users-${id}`,
-      user,
-      Number(this.configService.get('CACHE_TTL')),
-    );
     return user;
   }
 
