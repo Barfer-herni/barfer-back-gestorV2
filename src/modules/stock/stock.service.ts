@@ -6,7 +6,7 @@ import { PuntoEnvio } from '../../schemas/punto-envio.schema';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { StockData } from './interfaces/stock.interfaces';
-import { Prices } from 'src/schemas/prices.schema';
+import { Prices } from '../../schemas/prices.schema';
 import { ProductForStock, PriceSection } from './interfaces/stock.interfaces';
 import { OrdersService } from '../orders/orders.service';
 import { calculateSalesFromOrders } from './helpers/calculate-sales.helper';
