@@ -25,7 +25,6 @@ export enum OrderType {
 
 export enum PaymentMethod {
   MERCADO_PAGO = 'mercado-pago',
-  TRANSFERENCIA = 'transferencia',
   CASH = 'cash',
 }
 
