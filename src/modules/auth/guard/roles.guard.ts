@@ -11,7 +11,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredRole = this.reflector.getAllAndOverride<Roles>(ROLES_KEY, [
@@ -27,6 +27,7 @@ export class RolesGuard implements CanActivate {
     const requiredLevel = ROLE_HIERARCHY[requiredRole] || 0;
     const userLevel = ROLE_HIERARCHY[userRole] || 0;
 
-    return userLevel >= requiredLevel;
+    const result = userLevel >= requiredLevel;
+    return result;
   }
 }

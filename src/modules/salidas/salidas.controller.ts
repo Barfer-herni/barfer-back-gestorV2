@@ -7,32 +7,38 @@ import {
     Patch,
     Post,
     Query,
+    UseGuards,
 } from '@nestjs/common';
 import { SalidasService } from './salidas.service';
 import { CreateSalidaDto } from './dto/create-salida.dto';
 import { UpdateSalidaDto } from './dto/update-salida.dto';
 import { SalidasFilters } from './interfaces/salidas.interfaces';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PermissionsGuard } from '../auth/guard/permissions.guard';
+import { AuthGuard } from '../auth/guard/auth.guard';
 
 @Controller('salidas')
+@UseGuards(AuthGuard, PermissionsGuard)
 export class SalidasController {
     constructor(private readonly salidasService: SalidasService) { }
 
     @Post()
+    @Permissions('outputs:create')
     create(@Body() createSalidaDto: CreateSalidaDto) {
         return this.salidasService.createSalida(createSalidaDto);
     }
 
     @Get()
+    @Permissions('outputs:view')
     findAll() {
         return this.salidasService.getAllSalidas();
     }
 
     /**
-     * GET /salidas/paginated?pageIndex=0&pageSize=50&searchTerm=...&categoriaId=...
-     * &marca=...&metodoPagoId=...&tipo=...&tipoRegistro=...&fecha=...
-     * &fechaDesde=...&fechaHasta=...
+     * GET /salidas/paginated?pageIndex=0&pageSize=50...
      */
     @Get('paginated')
+    @Permissions('outputs:view')
     findPaginated(
         @Query('pageIndex') pageIndex?: string,
         @Query('pageSize') pageSize?: string,
@@ -65,6 +71,7 @@ export class SalidasController {
     }
 
     @Get('stats')
+    @Permissions('outputs:view_statistics')
     getStatsByMonth(
         @Query('year') year: string,
         @Query('month') month: string,
@@ -73,6 +80,7 @@ export class SalidasController {
     }
 
     @Get('date-range')
+    @Permissions('outputs:view')
     getByDateRange(
         @Query('startDate') startDate: string,
         @Query('endDate') endDate: string,
@@ -82,11 +90,8 @@ export class SalidasController {
 
     // ── Analytics ──────────────────────────────────────────────────────────────
 
-    /**
-     * GET /salidas/analytics/category?startDate=&endDate=
-     * Estadisticas por categoria (para grafico de torta).
-     */
     @Get('analytics/category')
+    @Permissions('outputs:view_statistics')
     getCategoryAnalytics(
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
@@ -97,11 +102,8 @@ export class SalidasController {
         );
     }
 
-    /**
-     * GET /salidas/analytics/type?startDate=&endDate=
-     * Estadisticas por tipo (ORDINARIO vs EXTRAORDINARIO).
-     */
     @Get('analytics/type')
+    @Permissions('outputs:view_statistics')
     getTypeAnalytics(
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
@@ -112,11 +114,8 @@ export class SalidasController {
         );
     }
 
-    /**
-     * GET /salidas/analytics/monthly?categoriaId=&startDate=&endDate=
-     * Estadisticas por mes con detalle por categoria.
-     */
     @Get('analytics/monthly')
+    @Permissions('outputs:view_statistics')
     getMonthlyAnalytics(
         @Query('categoriaId') categoriaId?: string,
         @Query('startDate') startDate?: string,
@@ -129,11 +128,8 @@ export class SalidasController {
         );
     }
 
-    /**
-     * GET /salidas/analytics/overview?startDate=&endDate=
-     * Resumen general de salidas.
-     */
     @Get('analytics/overview')
+    @Permissions('outputs:view_statistics')
     getOverviewAnalytics(
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
@@ -144,26 +140,26 @@ export class SalidasController {
         );
     }
 
-    /**
-     * GET /salidas/categorias
-     * Lista todas las categorias activas.
-     */
     @Get('categorias')
+    @Permissions('outputs:view')
     getCategorias() {
         return this.salidasService.getAllCategorias();
     }
 
     @Get(':id')
+    @Permissions('outputs:view')
     findOne(@Param('id') id: string) {
         return this.salidasService.getSalidaById(id);
     }
 
     @Patch(':id')
+    @Permissions('outputs:edit')
     update(@Param('id') id: string, @Body() updateSalidaDto: UpdateSalidaDto) {
         return this.salidasService.updateSalida(id, updateSalidaDto);
     }
 
     @Delete(':id')
+    @Permissions('outputs:delete')
     remove(@Param('id') id: string) {
         return this.salidasService.deleteSalida(id);
     }

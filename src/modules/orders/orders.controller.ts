@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { PaginationDto } from '../../common/dto/pagination/pagination.dto';
@@ -18,19 +19,26 @@ import { UpdateOrderDto } from './dto/update.dto';
 import { GetAllOrdersParamsDto } from './dto/get-all-orders-params.dto';
 import { BalanceMonthlyParamsDto } from './dto/balance.dto';
 import { OrdersService } from './orders.service';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PermissionsGuard } from '../auth/guard/permissions.guard';
+import { AuthGuard } from '../auth/guard/auth.guard';
 
 @Controller('orders')
+// @UseGuards(AuthGuard, PermissionsGuard) // We can apply them individually to routes to be safe, or globally.
+// Orders also has @Auth(Roles.User) which uses AuthGuard and RolesGuard.
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) { }
 
   @Post()
   @Auth(Roles.User)
+  @Permissions('table:edit')
   create(@Body() data: OrderDto) {
     return this.ordersService.createOrder(data);
   }
 
   @Post('calculate-price')
   @Auth(Roles.User)
+  // No strict permission needed yet just to calculate price
   calculatePrice(@Body() data: {
     items: Array<{
       name: string;
@@ -51,24 +59,28 @@ export class OrdersController {
 
   @Post(':id/duplicate')
   @Auth(Roles.User)
+  @Permissions('table:edit')
   duplicate(@Param('id') id: string) {
     return this.ordersService.duplicateOrder(id);
   }
 
   @Post('status-bulk')
   @Auth(Roles.User)
+  @Permissions('table:edit')
   updateStatusBulk(@Body() data: { ids: string[]; status: string }) {
     return this.ordersService.updateOrdersStatusBulk(data.ids, data.status);
   }
 
   @Patch(':id')
-  // @Auth(Roles.User)
+  @Auth(Roles.Admin)
+  @Permissions('table:edit')
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
     return this.ordersService.updateOrder(id, data);
   }
 
   @Get('all')
   @Auth(Roles.User)
+  @Permissions('table:view')
   getAll(@Query() params: GetAllOrdersParamsDto) {
     return this.ordersService.getAllOrders(params);
   }
@@ -81,18 +93,21 @@ export class OrdersController {
 
   @Post('backups/undo')
   @Auth(Roles.User)
+  @Permissions('table:edit')
   undoLastChange() {
     return this.ordersService.undoLastChange();
   }
 
   @Delete('backups')
   @Auth(Roles.User)
+  @Permissions('table:delete')
   clearBackups() {
     return this.ordersService.clearAllBackups();
   }
 
   @Get('balance-monthly')
-  // @Auth(Roles.User)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('balance:view')
   getBalanceMonthly(@Query() params: BalanceMonthlyParamsDto) {
     return this.ordersService.getBalanceMonthly(params.startDate, params.endDate);
   }
@@ -100,12 +115,14 @@ export class OrdersController {
 
   @Delete(':id')
   @Auth(Roles.User)
+  @Permissions('table:delete')
   delete(@Param('id') id: string) {
     return this.ordersService.deleteOrder(id);
   }
 
   @Get('express')
-  // @Auth(Roles.User)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('stock:view')
   getExpressOrders(
     @Query('puntoEnvio') puntoEnvio?: string,
     @Query('from') from?: string,
@@ -115,7 +132,8 @@ export class OrdersController {
   }
 
   @Get('priority')
-  // @Auth(Roles.User)
+  @Auth(Roles.Admin)
+  @Permissions('stock:view')
   getOrderPriority(
     @Query('fecha') fecha: string,
     @Query('puntoEnvio') puntoEnvio: string,
@@ -124,7 +142,8 @@ export class OrdersController {
   }
 
   @Post('express/:id/duplicate')
-  // @Auth(Roles.User)
+  @Auth(Roles.Admin)
+  @Permissions('stock:edit')
   duplicateExpressOrder(
     @Param('id') id: string,
     @Body('targetPuntoEnvio') targetPuntoEnvio: string,
@@ -135,6 +154,7 @@ export class OrdersController {
 
   @Post('priority')
   @Auth(Roles.User)
+  @Permissions('stock:edit')
   saveOrderPriority(
     @Body('fecha') fecha: string,
     @Body('puntoEnvio') puntoEnvio: string,
@@ -145,6 +165,7 @@ export class OrdersController {
 
   @Patch(':id/estado-envio')
   @Auth(Roles.User)
+  @Permissions('table:edit')
   updateEstadoEnvio(
     @Param('id') id: string,
     @Body('estadoEnvio') estadoEnvio: string,
@@ -153,7 +174,8 @@ export class OrdersController {
   }
 
   @Get('count-by-day')
-  // @Auth(Roles.User)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('table:view')
   countOrdersByDay(
     @Query('puntoEnvio') puntoEnvio: string,
     @Query('date') date: string,

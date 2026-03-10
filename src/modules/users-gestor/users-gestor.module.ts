@@ -1,11 +1,5 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from '../users/users.module';
-import { ProductsModule } from '../products/products.module';
-import { AddressModule } from '../address/address.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { OptionsModule } from '../options/options.module';
-import { DeliveryAreasModule } from '../delivery-areas/delivery-areas.module';
-import { DiscountsModule } from '../discounts/discounts.module';
 import { Mayoristas, MayoristaSchema } from '../../schemas/mayoristas.schema';
 import { UsersGestorController } from './users-gestor.controller';
 import { UsersGestorService } from './users-gestor.service';
@@ -21,12 +15,6 @@ import { UserGestor, UserGestorSchema } from '../../schemas/user-gestor.schema';
         schema: UserGestorSchema
       },
     ]),
-    UsersModule,
-    ProductsModule,
-    AddressModule,
-    OptionsModule,
-    DeliveryAreasModule,
-    DiscountsModule,
   ],
   exports: [UsersGestorService],
 })

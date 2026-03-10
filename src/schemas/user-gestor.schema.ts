@@ -30,12 +30,14 @@ export class UserGestor extends Document {
     @Prop({ required: true })
     password: string;
 
-    @Prop({ required: false })
+    @Prop({ type: [String], required: false, default: [] })
     permissions?: string[];
 
     @Prop({ type: [String], required: false })
     puntoEnvio?: string[];
 
+    @Prop({ required: false, default: null })
+    resetPasswordToken?: string;
 }
 
 export const UserGestorSchema = SchemaFactory.createForClass(UserGestor);

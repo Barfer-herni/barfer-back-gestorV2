@@ -10,12 +10,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { ROLES_KEY } from '../../common/enums/roles.enum';
-import {
-  comparePassword,
-  hashPassword,
-} from '../../common/utils/password.util';
-import { UsersService } from '../users/users.service';
+import { hashPassword } from '../../common/utils/password.util';
+import { UsersGestorService } from '../users-gestor/users-gestor.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RequestResetPasswordDto } from './dto/request-reset-password.dto';
@@ -24,27 +20,22 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UsersService,
+    private readonly usersGestorService: UsersGestorService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) { }
 
   async register(registerDto: RegisterDto) {
-    const user = await this.userService.findOneByEmailWithOutException(
-      registerDto.email,
-    );
+    const user = await this.usersGestorService.findByEmail(registerDto.email);
 
     if (user) {
       throw new ConflictException('User already exists');
     }
 
-    registerDto.password = await hashPassword(registerDto.password);
-
-    await this.userService.create(registerDto);
-
-    return {
-      message: 'User created successfully',
-    };
+    return this.usersGestorService.create({
+      ...registerDto,
+      role: registerDto.role || 'user',
+    } as any);
   }
 
   async login(
@@ -52,39 +43,12 @@ export class AuthService {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const user = await this.userService.findOneByEmail(loginDto.email);
-    if (!user) {
-      throw new UnauthorizedException('Wrong emial!');
-    }
-
-    const isValidPassword = await comparePassword(
-      loginDto.password,
-      user.password,
-    );
-    if (!isValidPassword) {
-      throw new UnauthorizedException('Wrong password!');
-    }
-
-    const userRole =
-      typeof user.role === 'string' ? user.role : ROLES_KEY[user.role];
-
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: userRole,
-    };
-
-    const token = await this.jwtService.signAsync(payload);
-
-    const refreshToken = await this.jwtService.signAsync(payload, {
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-    });
-
+    const result = await this.usersGestorService.login(loginDto.email, loginDto.password);
     res.status(200).json({
-      access_token: token,
-      refresh_token: refreshToken,
-      user_email: user.email,
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      user_email: result.user.email,
+      user: result.user,
     });
   }
 
@@ -100,7 +64,7 @@ export class AuthService {
 
   async requestResetPassword(resetPasswordDto: RequestResetPasswordDto) {
     const { email } = resetPasswordDto;
-    const user = await this.userService.findOneByEmail(email);
+    const user = await this.usersGestorService.findByEmail(email);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -111,8 +75,7 @@ export class AuthService {
       expiresIn: '1h',
     });
 
-    user.resetPasswordToken = token;
-    await this.userService.update(user.id, user);
+    await this.usersGestorService.update(user.id, { resetPasswordToken: token } as any);
 
     return { message: 'Correo de recuperación enviado' };
   }
@@ -129,7 +92,7 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired token');
     }
 
-    const user = await this.userService.findOneByEmail(payload.email);
+    const user = await this.usersGestorService.findByEmail(payload.email);
 
     if (!user) {
       throw new NotFoundException('User not found')
@@ -139,35 +102,23 @@ export class AuthService {
       throw new BadRequestException('Invalid reset password token');
     }
 
-    user.password = await hashPassword(password);
-    user.resetPasswordToken = null;
-    return await this.userService.update(user.id, user);
+    await this.usersGestorService.update(user.id, {
+      password: password,
+      resetPasswordToken: null
+    } as any);
+    return { success: true };
   }
 
   async refreshToken(@Req() req: Request, @Res() res: Response): Promise<void> {
     try {
-      const [, tokenRefresh] = req.headers.authorization.split(' ') || [];
+      const authHeader = req.headers.authorization;
+      if (!authHeader) throw new UnauthorizedException('No authorization header');
+      const [, tokenRefresh] = authHeader.split(' ');
 
-      const user = await this.jwtService.verifyAsync(tokenRefresh, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      });
-      const payload = { sub: user.id, email: user.email, role: user.role };
-
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      const token = await this.jwtService.signAsync(payload);
-
-      const refreshToken = await this.jwtService.signAsync(payload, {
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      });
+      const result = await this.usersGestorService.refreshToken(tokenRefresh);
 
       res.status(200).json({
-        access_token: token,
-        refresh_token: refreshToken,
-        user_email: user.email,
+        access_token: result.access_token,
       });
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -176,21 +127,6 @@ export class AuthService {
 
   async changePassword(token: string, password: string, newPassword: string) {
     const payload = await this.jwtService.verifyAsync(token);
-    const user = await this.userService.findOneByEmail(payload.email);
-
-    const passwordHash = await hashPassword(password);
-    if (
-      (await comparePassword(password, user.password)) &&
-      (await comparePassword(password, passwordHash))
-    ) {
-      user.password = await hashPassword(newPassword);
-      await this.userService.create(user);
-
-      return {
-        message: 'Password changed successfully',
-      };
-    }
-
-    throw new UnauthorizedException('Invalid password');
+    return this.usersGestorService.changePassword(payload.sub, password, newPassword);
   }
 }

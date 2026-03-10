@@ -8,11 +8,13 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { PaginationDto } from '../../common/dto/pagination/pagination.dto';
 import { Roles } from '../../common/enums/roles.enum';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PricesService } from './prices.service';
 import { PriceDto } from './dto/price.dto';
 import { UpdatePriceDto } from './dto/update.dto';
@@ -23,13 +25,15 @@ export class PricesController {
   constructor(private readonly pricesService: PricesService) { }
 
   @Post()
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:edit')
   create(@Body() data: PriceDto) {
     return this.pricesService.createPrice(data);
   }
 
   @Get()
-  // @Auth(Roles.User)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getAll(@Query() query: any) {
     if (Object.keys(query).length > 0) {
       return this.pricesService.getPrices(query);
@@ -38,25 +42,29 @@ export class PricesController {
   }
 
   @Get('current')
-  // @Auth(Roles.User)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getCurrent() {
     return this.pricesService.getCurrentPrices();
   }
 
   @Get('unique-products')
-  // @Auth(Roles.User)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getUniqueProducts() {
     return this.pricesService.getAllUniqueProducts();
   }
 
   @Get('select')
-  // @Auth(Roles.User)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getForSelect() {
     return this.pricesService.getProductsForSelect();
   }
 
   @Get('history')
-  // @Auth(Roles.User)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getHistory(
     @Query('section') section: Section,
     @Query('product') product: string,
@@ -67,13 +75,15 @@ export class PricesController {
   }
 
   @Get('stats')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.User)
+  @Permissions('prices:view')
   getStats() {
     return this.pricesService.getPriceStats();
   }
 
   @Patch('product')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:edit')
   updateProduct(
     @Query('section') section: Section,
     @Query('product') product: string,
@@ -89,13 +99,15 @@ export class PricesController {
   }
 
   @Patch(':id')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:edit')
   update(@Param('id') id: string, @Body() data: UpdatePriceDto) {
     return this.pricesService.updatePrice(id, data);
   }
 
   @Patch('product/price-types')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:edit')
   updatePriceTypes(
     @Body() data: {
       section: Section;
@@ -115,7 +127,8 @@ export class PricesController {
   }
 
   @Delete('product')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:delete')
   deleteProduct(
     @Query('section') section: Section,
     @Query('product') product: string,
@@ -125,13 +138,15 @@ export class PricesController {
   }
 
   @Delete(':id')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:delete')
   delete(@Param('id') id: string) {
     return this.pricesService.deletePrice(id);
   }
 
   @Post('initialize-period')
-  // @Auth(Roles.Admin)
+  @Auth(Roles.Admin)
+  @Permissions('prices:edit')
   initializePeriod(@Body() data: { month: number; year: number }) {
     return this.pricesService.initializePricesForPeriod(data.month, data.year);
   }

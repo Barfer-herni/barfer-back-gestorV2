@@ -798,11 +798,6 @@ export class AnalyticsService {
     if (puntoEnvio && puntoEnvio !== 'all') {
       matchCondition.puntoEnvio = puntoEnvio;
     }
-
-
-
-    console.log("MATCH CONDITION", matchCondition)
-
     const pipeline: PipelineStage[] = [
       { $match: matchCondition },
       { $unwind: '$items' },

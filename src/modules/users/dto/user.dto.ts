@@ -46,4 +46,7 @@ export class UserDto {
   @IsString()
   @IsOptional()
   resetPasswordToken?: string;
+
+  @IsOptional()
+  permissions?: string[];
 }
