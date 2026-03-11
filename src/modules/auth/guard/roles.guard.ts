@@ -22,6 +22,12 @@ export class RolesGuard implements CanActivate {
     if (!requiredRole) return true;
 
     const { user } = context.switchToHttp().getRequest();
+
+    // Si tiene el permiso 'all', tiene acceso total (bypass de roles)
+    if (user.permissions && user.permissions.includes('all')) {
+      return true;
+    }
+
     const userRole = user.role || ROLE_KEY[user.role];
 
     const requiredLevel = ROLE_HIERARCHY[requiredRole] || 0;

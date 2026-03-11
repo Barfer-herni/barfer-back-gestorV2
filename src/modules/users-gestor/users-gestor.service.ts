@@ -246,9 +246,6 @@ export class UsersGestorService {
       permissions: user.permissions || [],
       puntoEnvio: user.puntoEnvio || undefined,
     };
-
-    console.log('[UsersGestorService] Generating JWT payload:', payload);
-
     const access_token = this.jwtService.sign(payload);
 
     const refresh_token = this.jwtService.sign(

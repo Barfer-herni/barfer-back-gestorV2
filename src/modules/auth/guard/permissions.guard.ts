@@ -34,6 +34,12 @@ export class PermissionsGuard implements CanActivate {
         }
 
         const userPermissions = user.permissions || [];
+
+        // Si el usuario tiene el permiso 'all', tiene acceso a todo (super admin)
+        if (userPermissions.includes('all')) {
+            return true;
+        }
+
         const hasPermission = () => requiredPermissions.some((permission) => userPermissions.includes(permission));
 
 
