@@ -1013,6 +1013,10 @@ export class OrdersService {
         createdAt: 1,
         updatedAt: 1,
         total: 1,
+        subTotal: 1,
+        shippingPrice: 1,
+        paymentMethodDiscount: 1,
+        couponDiscount: 1,
         paymentMethod: 1,
         notesOwn: 1,
         orderType: 1,
@@ -1054,6 +1058,128 @@ export class OrdersService {
     } catch (error) {
       console.error('Error al obtener órdenes express:', error);
       return { orders: [], total: 0, page, totalPages: 0 };
+    }
+  }
+
+  async getExpressOrdersMetrics(
+    puntoEnvio?: string,
+    from?: string,
+    to?: string,
+  ): Promise<any> {
+    try {
+      const match: any = {
+        $or: [
+          { paymentMethod: 'bank-transfer' },
+          { 'deliveryArea.sameDayDelivery': true },
+          { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+        ]
+      };
+
+      if (puntoEnvio) match.puntoEnvio = puntoEnvio;
+
+      if (from || to) {
+        const dateFilter: any = {};
+        if (from) {
+          const [y, m, d] = from.split('-').map(Number);
+          dateFilter.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+        }
+        if (to) {
+          const [y, m, d] = to.split('-').map(Number);
+          dateFilter.$lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+        }
+        match.createdAt = dateFilter;
+      } else {
+        const currentYear = new Date().getFullYear();
+        match.createdAt = {
+          $gte: new Date(Date.UTC(currentYear, 0, 1, 0, 0, 0, 0))
+        };
+      }
+
+      const metrics = await this.orderModel.aggregate([
+        { $match: match },
+        {
+          $facet: {
+            summary: [
+              {
+                $group: {
+                  _id: null,
+                  totalRevenue: { $sum: '$total' },
+                  totalShipping: { $sum: { $ifNull: ['$shippingPrice', 0] } },
+                  totalOrders: { $sum: 1 },
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  totalRevenue: 1,
+                  totalShipping: 1,
+                  totalOrders: 1,
+                  shippingRatio: {
+                    $cond: [
+                      { $gt: ['$totalRevenue', 0] },
+                      { $multiply: [{ $divide: ['$totalShipping', '$totalRevenue'] }, 100] },
+                      0
+                    ]
+                  },
+                  averageShipping: {
+                    $cond: [
+                      { $gt: ['$totalOrders', 0] },
+                      { $divide: ['$totalShipping', '$totalOrders'] },
+                      0
+                    ]
+                  }
+                }
+              }
+            ],
+            monthly: [
+              {
+                $group: {
+                  _id: {
+                    month: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                    puntoEnvio: "$puntoEnvio"
+                  },
+                  totalRevenue: { $sum: '$total' },
+                  totalShipping: { $sum: { $ifNull: ['$shippingPrice', 0] } },
+                  totalOrders: { $sum: 1 },
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  month: "$_id.month",
+                  puntoEnvio: "$_id.puntoEnvio",
+                  totalRevenue: 1,
+                  totalShipping: 1,
+                  totalOrders: 1,
+                  averageShipping: {
+                    $cond: [
+                      { $gt: ['$totalOrders', 0] },
+                      { $divide: ['$totalShipping', '$totalOrders'] },
+                      0
+                    ]
+                  }
+                }
+              },
+              { $sort: { month: -1 } }
+            ]
+          }
+        }
+      ]).exec();
+
+      const result = metrics[0];
+      return {
+        summary: result.summary[0] || {
+          totalRevenue: 0,
+          totalShipping: 0,
+          totalOrders: 0,
+          shippingRatio: 0,
+          averageShipping: 0
+        },
+        monthly: result.monthly || []
+      };
+    } catch (error) {
+      console.error('Error calculating express metrics:', error);
+      throw new InternalServerErrorException('Error calculating express metrics');
     }
   }
 

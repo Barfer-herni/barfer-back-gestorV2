@@ -133,6 +133,17 @@ export class OrdersController {
     return this.ordersService.getExpressOrders(puntoEnvio, from, to, page, limit);
   }
 
+  @Get('express/metrics')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('stock:view')
+  getExpressOrdersMetrics(
+    @Query('puntoEnvio') puntoEnvio?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.ordersService.getExpressOrdersMetrics(puntoEnvio, from, to);
+  }
+
   @Get('priority')
   @Auth(Roles.Admin)
   @Permissions('stock:view')
