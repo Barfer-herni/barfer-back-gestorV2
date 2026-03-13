@@ -432,7 +432,7 @@ export class StockService {
                     product: prev.producto,
                     section: section,
                     weight: prev.peso
-                }, ordersForTargetDate);
+                }, ordersForTargetDate.orders);
 
                 const existingMatch = existingStock.find(s =>
                     s.producto === prev.producto &&

@@ -127,8 +127,10 @@ export class OrdersController {
     @Query('puntoEnvio') puntoEnvio?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 50,
   ) {
-    return this.ordersService.getExpressOrders(puntoEnvio, from, to);
+    return this.ordersService.getExpressOrders(puntoEnvio, from, to, page, limit);
   }
 
   @Get('priority')

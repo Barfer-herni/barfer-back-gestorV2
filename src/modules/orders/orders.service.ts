@@ -894,8 +894,13 @@ export class OrdersService {
 
 
 
-
-  async getExpressOrders(puntoEnvio?: string, from?: string, to?: string): Promise<Order[]> {
+  async getExpressOrders(
+    puntoEnvio?: string,
+    from?: string,
+    to?: string,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
     try {
       const filter: any = {
         $or: [
@@ -904,9 +909,10 @@ export class OrdersService {
           { puntoEnvio: { $exists: true, $nin: [null, ''] } }
         ]
       };
+
       if (puntoEnvio) filter.puntoEnvio = puntoEnvio;
+
       if (from && from.trim() !== '' || to && to.trim() !== '') {
-        // Si solo hay "from", tratar como día único (evitar devolver todos los días futuros)
         const fromVal = from?.trim() || '';
         const toVal = to?.trim() || fromVal;
 
@@ -915,16 +921,13 @@ export class OrdersService {
 
         if (fromVal) {
           const [year, month, day] = fromVal.split('-').map(Number);
-          // 00:00:00 Arg Time = 03:00:00 UTC
           fromDateUTC = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
         }
         if (toVal) {
           const [year, month, day] = toVal.split('-').map(Number);
-          // 23:59:59 Arg Time = 02:59:59 UTC of NEXT day
           toDateUTC = new Date(Date.UTC(year, month - 1, day + 1, 2, 59, 59, 999));
         }
 
-        // Para deliveryDay: día en UTC (00:00 a 23:59) para alinearse con el front (toISOString().substring(0,10))
         let fromDeliveryUTC: Date | undefined;
         let toDeliveryUTC: Date | undefined;
         if (fromVal) {
@@ -971,14 +974,28 @@ export class OrdersService {
           }
         ];
       }
-      const orders = await this.orderModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .exec();
-      return orders;
+
+      const skip = (page - 1) * limit;
+
+      const [orders, total] = await Promise.all([
+        this.orderModel
+          .find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.orderModel.countDocuments(filter)
+      ]);
+
+      return {
+        orders,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
     } catch (error) {
       console.error('Error al obtener órdenes express:', error);
-      return [];
+      return { orders: [], total: 0, page, totalPages: 0 };
     }
   }
 
