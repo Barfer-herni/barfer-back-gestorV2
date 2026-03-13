@@ -912,7 +912,33 @@ export class OrdersService {
 
       if (puntoEnvio) filter.puntoEnvio = puntoEnvio;
 
-      if (from && from.trim() !== '' || to && to.trim() !== '') {
+      // Si no se pasa rango de fechas, filtrar por defecto los últimos 7 días
+      if (!from && !to) {
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
+        filter.$and = [
+          {
+            $or: [
+              { deliveryDay: { $gte: sevenDaysAgo } },
+              {
+                $and: [
+                  { deliveryDay: { $exists: false } },
+                  { createdAt: { $gte: sevenDaysAgo } },
+                ],
+              },
+              {
+                $and: [
+                  { deliveryDay: null },
+                  { createdAt: { $gte: sevenDaysAgo } },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+
+      if ((from && from.trim() !== '') || (to && to.trim() !== '')) {
         const fromVal = from?.trim() || '';
         const toVal = to?.trim() || fromVal;
 
@@ -977,9 +1003,41 @@ export class OrdersService {
 
       const skip = (page - 1) * limit;
 
+      // Proyectar solo los campos necesarios para la tabla (evita traer documentos completos pesados)
+      const tableProjection = {
+        _id: 1,
+        status: 1,
+        estadoEnvio: 1,
+        puntoEnvio: 1,
+        deliveryDay: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        total: 1,
+        paymentMethod: 1,
+        notesOwn: 1,
+        orderType: 1,
+        'user.name': 1,
+        'user.lastName': 1,
+        'user.email': 1,
+        'user.phone': 1,
+        'address.address': 1,
+        'address.city': 1,
+        'address.phone': 1,
+        'address.betweenStreets': 1,
+        'address.floorNumber': 1,
+        'address.departmentNumber': 1,
+        'address.reference': 1,
+        'items.name': 1,
+        'items.fullName': 1,
+        'items.options': 1,
+        'deliveryArea.sameDayDelivery': 1,
+        'deliveryArea.schedule': 1,
+      };
+
       const [orders, total] = await Promise.all([
         this.orderModel
           .find(filter)
+          .select(tableProjection)
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)

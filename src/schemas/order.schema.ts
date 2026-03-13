@@ -124,6 +124,19 @@ export class Order {
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
+// Índices simples
 OrderSchema.index({ createdAt: -1 });
 OrderSchema.index({ deliveryDay: -1 });
 OrderSchema.index({ 'user.email': 1 });
+
+// Índices compuestos optimizados para getExpressOrders
+// Cubre filtro por puntoEnvio + ordenamiento por deliveryDay
+OrderSchema.index({ puntoEnvio: 1, deliveryDay: -1 });
+// Cubre filtro por puntoEnvio + ordenamiento por createdAt (fallback sin fechas)
+OrderSchema.index({ puntoEnvio: 1, createdAt: -1 });
+// Cubre filtro por paymentMethod (ej: 'bank-transfer') + ordenamiento
+OrderSchema.index({ paymentMethod: 1, createdAt: -1 });
+// Cubre filtro por deliveryArea.sameDayDelivery + ordenamiento
+OrderSchema.index({ 'deliveryArea.sameDayDelivery': 1, createdAt: -1 });
+// Índice compuesto para getAllOrders (excluye express por deliveryArea + ordenamiento)
+OrderSchema.index({ 'deliveryArea.sameDayDelivery': 1, deliveryDay: -1, createdAt: -1 });
