@@ -54,13 +54,13 @@ interface ItemStats {
 
 
 // ---- Helper: extrae kilos del nombre del producto ----
-function parseWeightFromName(name: string): number {
+function parseWeightFromName(name: string): number | null {
   const upper = name.toUpperCase().trim();
   const kgMatch = upper.match(/([\d.,]+)\s*KG/);
   if (kgMatch) return parseFloat(kgMatch[1].replace(',', '.'));
   const grMatch = upper.match(/([\d.,]+)\s*GR/);
   if (grMatch) return parseFloat(grMatch[1].replace(',', '.')) / 1000;
-  return 1; // fallback: 1 unidad
+  return null; // fallback: null para buscar en el siguiente nivel
 }
 
 // ---- Helper: clasifica y suma kilos por categoría ----
@@ -73,29 +73,59 @@ function clasificarItem(
   const name = productName.toUpperCase();
   const option = optionName?.toUpperCase() || '';
 
-  if (name.includes('BIG DOG')) {
-    if (option.includes('POLLO')) stats.bigDogPollo += totalWeight;
-    else if (option.includes('VACA')) stats.bigDogVaca += totalWeight;
-    stats.totalPerro += totalWeight;
+  let counted = false;
 
-  } else if (name.includes('HUESOS') || name.includes('CARNOSOS')) {
+  if (name.includes('BIG DOG')) {
+    if (option.includes('POLLO') || name.includes('POLLO')) {
+      stats.bigDogPollo += totalWeight;
+      counted = true;
+    } else if (option.includes('VACA') || name.includes('VACA')) {
+      stats.bigDogVaca += totalWeight;
+      counted = true;
+    }
+
+    if (counted) stats.totalPerro += totalWeight;
+
+  } else if (name.includes('CARNOSO')) {
     stats.huesosCarnosos += totalWeight;
+    counted = true;
 
   } else if (name.includes('PERRO')) {
-    if (name.includes('POLLO')) stats.pollo += totalWeight;
-    else if (name.includes('VACA')) stats.vaca += totalWeight;
-    else if (name.includes('CERDO')) stats.cerdo += totalWeight;
-    else if (name.includes('CORDERO')) stats.cordero += totalWeight;
-    stats.totalPerro += totalWeight;
+    if (name.includes('POLLO') || option.includes('POLLO')) {
+      stats.pollo += totalWeight;
+      counted = true;
+    } else if (name.includes('VACA') || option.includes('VACA')) {
+      stats.vaca += totalWeight;
+      counted = true;
+    } else if (name.includes('CERDO') || option.includes('CERDO')) {
+      stats.cerdo += totalWeight;
+      counted = true;
+    } else if (name.includes('CORDERO') || option.includes('CORDERO')) {
+      stats.cordero += totalWeight;
+      counted = true;
+    }
+
+    if (counted) stats.totalPerro += totalWeight;
 
   } else if (name.includes('GATO')) {
-    if (name.includes('POLLO')) stats.gatoPollo += totalWeight;
-    else if (name.includes('VACA')) stats.gatoVaca += totalWeight;
-    else if (name.includes('CORDERO')) stats.gatoCordero += totalWeight;
-    stats.totalGato += totalWeight;
+    if (name.includes('POLLO') || option.includes('POLLO')) {
+      stats.gatoPollo += totalWeight;
+      counted = true;
+    } else if (name.includes('VACA') || option.includes('VACA')) {
+      stats.gatoVaca += totalWeight;
+      counted = true;
+    } else if (name.includes('CORDERO') || option.includes('CORDERO')) {
+      stats.gatoCordero += totalWeight;
+      counted = true;
+    }
+
+    if (counted) stats.totalGato += totalWeight;
   }
 
-  stats.totalKg += totalWeight;
+  // Sólo sumamos al total si pertenece a alguna de las categorías permitidas
+  if (counted) {
+    stats.totalKg += totalWeight;
+  }
 }
 
 // ---- Helper: calcula kilos totales de una orden ----
