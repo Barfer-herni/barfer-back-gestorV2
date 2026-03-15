@@ -52,7 +52,6 @@ export class AnalyticsService {
     if (statusFilter !== 'all') {
       matchCondition.status = statusFilter;
     }
-
     if (startDate || endDate) {
       matchCondition.createdAt = {};
       if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
@@ -63,7 +62,6 @@ export class AnalyticsService {
     if (Object.keys(matchCondition).length > 0) {
       pipeline.push({ $match: matchCondition });
     }
-
     pipeline.push(
       { $unwind: '$items' },
       { $unwind: '$items.options' },
@@ -366,23 +364,121 @@ export class AnalyticsService {
   async getDeliveryTypeStatsByMonth(): Promise<any> {
     const pipeline: PipelineStage[] = [
       {
-        $group: {
-          _id: {
-            year: { $year: { $toDate: '$createdAt' } },
-            month: { $month: { $toDate: '$createdAt' } },
-            type: '$orderType'
-          },
-          count: { $sum: 1 },
-          revenue: { $sum: '$total' }
+        $match: {
+          status: { $in: ['confirmed', 'pending', 'delivered'] }
         }
       },
-      { $sort: { '_id.year': -1 as const, '_id.month': -1 as const } }
+      {
+        $project: {
+          total: 1,
+          status: 1,
+          createdAt: 1,
+          items: 1,
+          orderType: 1,
+          paymentMethod: 1,
+          'deliveryArea.sameDayDelivery': 1,
+          monthKey: {
+            $dateToString: { format: '%Y-%m', date: { $toDate: '$createdAt' } }
+          },
+          deliveryCategory: {
+            $cond: [
+              { $eq: ['$orderType', 'mayorista'] },
+              'wholesale',
+              {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$deliveryArea.sameDayDelivery', true] },
+                      { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                    ]
+                  },
+                  'sameDay',
+                  'normal'
+                ]
+              }
+            ]
+          }
+        }
+      }
     ];
-    return this.orderModel.aggregate(pipeline);
+
+    const orders = await this.orderModel.aggregate(pipeline);
+
+    // Process in JS to handle weight calculation using the utility
+    const statsMap = new Map<string, any>();
+
+    orders.forEach(order => {
+      const month = order.monthKey;
+      if (!statsMap.has(month)) {
+        statsMap.set(month, {
+          month,
+          sameDayOrders: 0,
+          normalOrders: 0,
+          wholesaleOrders: 0,
+          sameDayRevenue: 0,
+          normalRevenue: 0,
+          wholesaleRevenue: 0,
+          sameDayWeight: 0,
+          normalWeight: 0,
+          wholesaleWeight: 0
+        });
+      }
+
+      const stats = statsMap.get(month);
+      const category = order.deliveryCategory;
+      const isConfirmed = ['confirmed', 'delivered'].includes(order.status);
+
+      // Count orders (all statuses)
+      if (category === 'sameDay') stats.sameDayOrders++;
+      else if (category === 'wholesale') stats.wholesaleOrders++;
+      else stats.normalOrders++;
+
+      // Revenue and Weight (only confirmed/delivered?) 
+      // Most analytics show revenue for confirmed only to avoid noise
+      if (isConfirmed) {
+        const revenue = order.total || 0;
+        let weight = 0;
+
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach((item: any) => {
+            if (item.options && Array.isArray(item.options)) {
+              item.options.forEach((opt: any) => {
+                const itemWeight = calculateItemWeight(item.name, opt.name);
+                weight += itemWeight * (opt.quantity || 1);
+              });
+            } else {
+              const itemWeight = calculateItemWeight(item.name, '');
+              weight += itemWeight * (item.quantity || 1);
+            }
+          });
+        }
+
+        if (category === 'sameDay') {
+          stats.sameDayRevenue += revenue;
+          stats.sameDayWeight += weight;
+        } else if (category === 'wholesale') {
+          stats.wholesaleRevenue += revenue;
+          stats.wholesaleWeight += weight;
+        } else {
+          stats.normalRevenue += revenue;
+          stats.normalWeight += weight;
+        }
+      }
+    });
+
+    // Format weights to 1 decimal place and return sorted array
+    return Array.from(statsMap.values())
+      .map(s => ({
+        ...s,
+        sameDayWeight: Math.round(s.sameDayWeight * 10) / 10,
+        normalWeight: Math.round(s.normalWeight * 10) / 10,
+        wholesaleWeight: Math.round(s.wholesaleWeight * 10) / 10
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month));
   }
 
   async getOrdersByDay(startDate?: string, endDate?: string): Promise<any> {
-    const match: any = { status: 'confirmed' };
+    const match: any = { status: { $in: ['confirmed', 'pending', 'delivered'] } };
     if (startDate || endDate) {
       match.createdAt = {};
       if (startDate) match.createdAt.$gte = new Date(startDate);
@@ -403,7 +499,12 @@ export class AnalyticsService {
       },
       { $sort: { '_id.year': 1 as const, '_id.month': 1 as const, '_id.day': 1 as const } }
     ];
-    return this.orderModel.aggregate(pipeline);
+    const results = await this.orderModel.aggregate(pipeline);
+    return results.map(item => ({
+      date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
+      orders: item.orderCount,
+      revenue: item.revenue
+    }));
   }
 
   async getOrdersByMonth(): Promise<any> {
@@ -437,7 +538,10 @@ export class AnalyticsService {
   }
 
   async getPaymentMethodStats(startDate?: string, endDate?: string): Promise<any> {
-    const matchCondition: any = { status: { $in: ['confirmed', 'pending'] } };
+    const matchCondition: any = {
+      status: { $in: ['confirmed', 'pending', 'delivered'] },
+      // paymentMethod: { $ne: 'bank-transfer' }
+    };
 
     if (startDate || endDate) {
       matchCondition.createdAt = {};
@@ -447,6 +551,22 @@ export class AnalyticsService {
 
     const pipeline: PipelineStage[] = [
       { $match: matchCondition },
+      {
+        $addFields: {
+          paymentMethod: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$paymentMethod', 'bank-transfer'] },
+                  { $gte: [{ $toDate: '$createdAt' }, new Date('2026-01-01')] }
+                ]
+              },
+              'mercado-pago',
+              '$paymentMethod'
+            ]
+          }
+        }
+      },
       {
         $group: {
           _id: '$paymentMethod',
@@ -506,6 +626,22 @@ export class AnalyticsService {
             $lte: new Date(endDate)
           }
         }
+      },
+      {
+        $addFields: {
+          paymentMethod: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$paymentMethod', 'bank-transfer'] },
+                  { $gte: [{ $toDate: '$createdAt' }, new Date('2026-01-01')] }
+                ]
+              },
+              'mercado-pago',
+              '$paymentMethod'
+            ]
+          }
+        }
       }
     ];
 
@@ -557,6 +693,50 @@ export class AnalyticsService {
       if (startDate) match.createdAt.$gte = new Date(startDate);
       if (endDate) match.createdAt.$lte = new Date(endDate);
     }
+
+    // const pipeline: PipelineStage[] = [
+    //   { $match: match },
+    //   { $unwind: '$items' },
+    //   { $unwind: '$items.options' },
+
+    //   {
+    //     $group: {
+    //       _id: {
+    //         productId: '$items.id',
+    //         productName: '$items.name',
+    //         optionName: '$items.options.name'
+    //       },
+
+    //       totalQuantity: { $sum: '$items.options.quantity' },
+
+    //       totalRevenue: {
+    //         $sum: {
+    //           $multiply: [
+    //             '$items.options.quantity',
+    //             '$items.options.price'
+    //           ]
+    //         }
+    //       },
+
+    //       orders: { $addToSet: '$_id' },
+
+    //       avgPrice: { $avg: '$items.options.price' }
+    //     }
+    //   },
+
+    //   {
+    //     $project: {
+    //       _id: 1,
+    //       totalQuantity: 1,
+    //       totalRevenue: 1,
+    //       avgPrice: 1,
+    //       orderCount: { $size: '$orders' }
+    //     }
+    //   },
+
+    //   { $sort: { totalQuantity: -1 } as any },
+    //   { $limit: limit }
+    // ];
 
     const pipeline: PipelineStage[] = [
       { $match: match },
@@ -923,7 +1103,33 @@ export class AnalyticsService {
   }
 
   async getRevenueByDay(startDate?: string, endDate?: string): Promise<any> {
-    return this.getOrdersByDay(startDate, endDate);
+    const match: any = { status: { $in: ['confirmed', 'delivered'] } };
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = new Date(startDate);
+      if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+    const pipeline: PipelineStage[] = [
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            year: { $year: { $toDate: '$createdAt' } },
+            month: { $month: { $toDate: '$createdAt' } },
+            day: { $dayOfMonth: { $toDate: '$createdAt' } }
+          },
+          orderCount: { $sum: 1 },
+          revenue: { $sum: '$total' }
+        }
+      },
+      { $sort: { '_id.year': 1 as const, '_id.month': 1 as const, '_id.day': 1 as const } }
+    ];
+    const results = await this.orderModel.aggregate(pipeline);
+    return results.map(item => ({
+      date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
+      orders: item.orderCount,
+      revenue: item.revenue
+    }));
   }
 }
 
