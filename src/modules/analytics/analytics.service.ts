@@ -978,6 +978,7 @@ export class AnalyticsService {
     if (puntoEnvio && puntoEnvio !== 'all') {
       matchCondition.puntoEnvio = puntoEnvio;
     }
+
     const pipeline: PipelineStage[] = [
       { $match: matchCondition },
       { $unwind: '$items' },
@@ -989,14 +990,11 @@ export class AnalyticsService {
             month: { $month: { $toDate: '$createdAt' } },
             orderType: { $ifNull: ['$orderType', 'minorista'] },
             sameDayDelivery: '$deliveryArea.sameDayDelivery',
-            // puntoEnvio: '$deliveryArea.puntoEnvio',
             puntoEnvio: { $ifNull: ['$deliveryArea.puntoEnvio', '$puntoEnvio'] },
-            paymentMethod: '$paymentMethod',
             productName: '$items.name',
             optionName: '$items.options.name'
           },
           totalQuantity: { $sum: '$items.options.quantity' },
-          totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } }
         }
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } as any }
@@ -1004,26 +1002,16 @@ export class AnalyticsService {
 
     const results = await this.orderModel.aggregate(pipeline);
 
-    // Initial structure
-    const stats: any = {
-      minorista: [],
-      sameDay: [],
-      mayorista: []
-    };
+    const stats: any = { minorista: [], sameDay: [], mayorista: [] };
 
-    // Helper to find or create a month entry
     const getMonthEntry = (array: any[], monthKey: string) => {
       let entry = array.find(m => m.month === monthKey);
       if (!entry) {
         entry = {
-          month: monthKey,
-          pollo: 0, vaca: 0, cerdo: 0, cordero: 0,
-          bigDogPollo: 0, bigDogVaca: 0,
-          totalPerro: 0,
-          gatoPollo: 0, gatoVaca: 0, gatoCordero: 0,
-          totalGato: 0,
-          huesosCarnosos: 0,
-          totalMes: 0
+          month: monthKey, pollo: 0, vaca: 0, cerdo: 0, cordero: 0,
+          bigDogPollo: 0, bigDogVaca: 0, totalPerro: 0,
+          gatoPollo: 0, gatoVaca: 0, gatoCordero: 0, totalGato: 0,
+          huesosCarnosos: 0, totalMes: 0
         };
         array.push(entry);
       }
@@ -1036,32 +1024,25 @@ export class AnalyticsService {
       const monthKey = `${year}-${month}`;
       const orderType = (item._id.orderType || 'minorista').toLowerCase();
 
-      // Determine which target list based on orderType
-      let targetList;
+      let targetList = stats.minorista;
       if (item._id.sameDayDelivery || item._id.puntoEnvio) {
         targetList = stats.sameDay;
-      }
-      else if (orderType === 'mayorista') {
+      } else if (orderType === 'mayorista') {
         targetList = stats.mayorista;
-      }
-      else {
-        targetList = stats.minorista;
       }
 
       const entry = getMonthEntry(targetList, monthKey);
-
+      
+      // USAMOS LA UTILITY ORIGINAL PARA PRECISIÓN DEL 100%
       const weight = calculateItemWeight(item._id.productName, item._id.optionName);
       const totalWeight = weight * item.totalQuantity;
 
       const productName = item._id.productName.toUpperCase();
+      const optionName = (item._id.optionName || '').toUpperCase();
 
-      //el sabor del big dog no esta en el productname sino en items.options.name
       if (productName.includes('BIG DOG')) {
-        if (item._id.optionName.includes('POLLO')) {
-          entry.bigDogPollo += totalWeight;
-        } else if (item._id.optionName.includes('VACA')) {
-          entry.bigDogVaca += totalWeight;
-        }
+        if (optionName.includes('POLLO')) entry.bigDogPollo += totalWeight;
+        else if (optionName.includes('VACA')) entry.bigDogVaca += totalWeight;
         entry.totalPerro += totalWeight;
       } else if (productName.includes('HUESOS') || productName.includes('CARNOSOS')) {
         entry.huesosCarnosos += totalWeight;
@@ -1081,23 +1062,15 @@ export class AnalyticsService {
       entry.totalMes += totalWeight;
     });
 
-    // Formatting decimals
     const formatEntry = (entry: any) => {
       Object.keys(entry).forEach(key => {
-        if (key !== 'month') {
-          entry[key] = Math.round(entry[key] * 10) / 10;
-        }
+        if (key !== 'month') entry[key] = Math.round(entry[key] * 10) / 10;
       });
     };
 
     stats.minorista.forEach(formatEntry);
     stats.sameDay.forEach(formatEntry);
     stats.mayorista.forEach(formatEntry);
-
-    // Sort again just in case (though aggregation handled it mostly)
-    stats.minorista.sort((a, b) => a.month.localeCompare(b.month));
-    stats.sameDay.sort((a, b) => a.month.localeCompare(b.month));
-    stats.mayorista.sort((a, b) => a.month.localeCompare(b.month));
 
     return stats;
   }

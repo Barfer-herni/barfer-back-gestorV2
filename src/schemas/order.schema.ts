@@ -126,8 +126,14 @@ export const OrderSchema = SchemaFactory.createForClass(Order);
 
 // Índices simples
 OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ status: 1 });
 OrderSchema.index({ deliveryDay: -1 });
 OrderSchema.index({ 'user.email': 1 });
+OrderSchema.index({ 'items.name': 1 });
+
+// Índices compuestos optimizados
+// Para consultas de analytics que filtran por status y rango de fechas
+OrderSchema.index({ status: 1, createdAt: -1 });
 
 // Índices compuestos optimizados para getExpressOrders
 // Cubre filtro por puntoEnvio + ordenamiento por deliveryDay
