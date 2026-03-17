@@ -19,6 +19,9 @@ export class Stock extends Document {
     @Prop({ required: true })
     llevamos: number;
 
+    @Prop({ default: 0 })
+    ajuste: number;
+
     @Prop({ required: true })
     pedidosDelDia: number;
 

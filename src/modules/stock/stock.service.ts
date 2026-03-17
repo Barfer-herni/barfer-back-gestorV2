@@ -32,6 +32,7 @@ export class StockService {
             peso: doc.peso,
             stockInicial: doc.stockInicial,
             llevamos: doc.llevamos,
+            ajuste: doc.ajuste ?? 0,
             pedidosDelDia: doc.pedidosDelDia,
             stockFinal: doc.stockFinal,
             fecha: doc.fecha
@@ -150,7 +151,8 @@ export class StockService {
                 };
             }
 
-            const stockFinal = data.stockFinal ?? (data.stockInicial - data.llevamos);
+            const ajuste = data.ajuste ?? 0;
+            const stockFinal = data.stockFinal ?? (data.stockInicial + data.llevamos + ajuste - data.pedidosDelDia);
 
             const newStock = new this.stockModel({
                 puntoEnvioId: puntoEnvio._id,
@@ -158,6 +160,7 @@ export class StockService {
                 peso: data.peso,
                 stockInicial: data.stockInicial,
                 llevamos: data.llevamos,
+                ajuste,
                 pedidosDelDia: data.pedidosDelDia,
                 stockFinal,
                 fecha: data.fecha ? new Date(data.fecha) : new Date(),
@@ -214,14 +217,17 @@ export class StockService {
             if (data.peso !== undefined) updateDoc.peso = data.peso;
             if (data.stockInicial !== undefined) updateDoc.stockInicial = data.stockInicial;
             if (data.llevamos !== undefined) updateDoc.llevamos = data.llevamos;
+            if (data.ajuste !== undefined) updateDoc.ajuste = data.ajuste;
             if (data.pedidosDelDia !== undefined) updateDoc.pedidosDelDia = data.pedidosDelDia;
             if (data.fecha !== undefined) updateDoc.fecha = new Date(data.fecha);
 
-            // Recalcular stockFinal si cambió stockInicial o llevamos
-            if (data.stockInicial !== undefined || data.llevamos !== undefined) {
+            // Recalcular stockFinal si cambió stockInicial, llevamos o ajuste
+            if (data.stockInicial !== undefined || data.llevamos !== undefined || data.ajuste !== undefined || data.pedidosDelDia !== undefined) {
                 const stockInicial = data.stockInicial ?? existing.stockInicial;
                 const llevamos = data.llevamos ?? existing.llevamos;
-                updateDoc.stockFinal = stockInicial - llevamos;
+                const ajuste = data.ajuste ?? (existing as any).ajuste ?? 0;
+                const pedidosDelDia = data.pedidosDelDia ?? existing.pedidosDelDia;
+                updateDoc.stockFinal = stockInicial + llevamos + ajuste - pedidosDelDia;
             } else if (data.stockFinal !== undefined) {
                 updateDoc.stockFinal = data.stockFinal;
             }
@@ -440,7 +446,8 @@ export class StockService {
                 );
 
                 if (existingMatch) {
-                    const recalculatedStockFinal = stockInicialValue + (existingMatch.llevamos || 0) - pedidosDelDiaForTarget;
+                    const existingAjuste = (existingMatch as any).ajuste ?? 0;
+                    const recalculatedStockFinal = stockInicialValue + (existingMatch.llevamos || 0) + existingAjuste - pedidosDelDiaForTarget;
                     await this.stockModel.updateOne(
                         { _id: existingMatch._id },
                         {
@@ -455,7 +462,7 @@ export class StockService {
                     );
                     updatedCount++;
                 } else {
-                    const newStockFinal = stockInicialValue - pedidosDelDiaForTarget;
+                    const newStockFinal = stockInicialValue - pedidosDelDiaForTarget; // llevamos=0, ajuste=0 para nuevos registros
                     const newRecord = new this.stockModel({
                         puntoEnvio: puntoEnvio,
                         section: section,
@@ -463,6 +470,7 @@ export class StockService {
                         peso: prev.peso,
                         stockInicial: stockInicialValue,
                         llevamos: 0,
+                        ajuste: 0,
                         pedidosDelDia: pedidosDelDiaForTarget,
                         stockFinal: newStockFinal,
                         fecha: targetDateStr,
@@ -522,7 +530,8 @@ export class StockService {
                         const correctStockInicial = prevMatch.stockFinal;
 
                         if (curr.stockInicial !== correctStockInicial) {
-                            const newStockFinal = correctStockInicial + (curr.llevamos || 0) - (curr.pedidosDelDia || 0);
+                            const ajuste = (curr as any).ajuste ?? 0;
+                            const newStockFinal = correctStockInicial + (curr.llevamos || 0) + ajuste - (curr.pedidosDelDia || 0);
 
                             await this.stockModel.updateOne(
                                 { _id: curr._id },

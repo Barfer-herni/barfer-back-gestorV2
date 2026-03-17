@@ -5,6 +5,7 @@ export interface StockData {
     peso?: string;
     stockInicial: number;
     llevamos: number;
+    ajuste: number;
     pedidosDelDia: number;
     stockFinal: number;
     fecha: string;
