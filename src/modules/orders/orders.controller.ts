@@ -66,7 +66,7 @@ export class OrdersController {
 
   @Post('status-bulk')
   @Auth(Roles.User)
-  @Permissions('table:edit')
+  @Permissions('table:edit', 'stock:edit')
   updateStatusBulk(@Body() data: { ids: string[]; status: string }) {
     return this.ordersService.updateOrdersStatusBulk(data.ids, data.status);
   }
@@ -115,7 +115,7 @@ export class OrdersController {
 
   @Delete(':id')
   @Auth(Roles.User)
-  @Permissions('table:delete')
+  @Permissions('table:delete', 'stock:delete')
   delete(@Param('id') id: string) {
     return this.ordersService.deleteOrder(id);
   }
@@ -146,7 +146,7 @@ export class OrdersController {
 
   @Get('priority')
   @Auth(Roles.User)
-  @Permissions('stock:view')
+  @Permissions('stock:view', 'table:view')
   getOrderPriority(
     @Query('fecha') fecha: string,
     @Query('puntoEnvio') puntoEnvio: string,
@@ -178,7 +178,7 @@ export class OrdersController {
 
   @Patch(':id/estado-envio')
   @Auth(Roles.User)
-  @Permissions('table:edit')
+  @Permissions('table:edit', 'stock:edit')
   updateEstadoEnvio(
     @Param('id') id: string,
     @Body('estadoEnvio') estadoEnvio: string,
@@ -188,7 +188,7 @@ export class OrdersController {
 
   @Get('count-by-day')
   @UseGuards(AuthGuard, PermissionsGuard)
-  @Permissions('table:view')
+  @Permissions('table:view', 'stock:view')
   countOrdersByDay(
     @Query('puntoEnvio') puntoEnvio: string,
     @Query('date') date: string,
