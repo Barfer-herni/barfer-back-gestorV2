@@ -20,21 +20,21 @@ export class CategoriasGestorController {
     constructor(private readonly categoriasGestorService: CategoriasGestorService) { }
 
     @Post()
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:edit') // Categories gestor are usually for balance/outputs
     create(@Body() createCategoriaGestorDto: CreateCategoriaGestorDto) {
         return this.categoriasGestorService.create(createCategoriaGestorDto);
     }
 
     @Post('initialize')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:edit')
     initialize() {
         return this.categoriasGestorService.initialize();
     }
 
     @Post('ensure-sueldos')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:edit')
     ensureSueldosCategory() {
         return this.categoriasGestorService.ensureSueldosCategory();
@@ -76,7 +76,7 @@ export class CategoriasGestorController {
     }
 
     @Patch(':id')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:edit')
     update(
         @Param('id') id: string,
@@ -86,14 +86,14 @@ export class CategoriasGestorController {
     }
 
     @Delete(':id/soft')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:delete')
     softDelete(@Param('id') id: string) {
         return this.categoriasGestorService.softDelete(id);
     }
 
     @Delete(':id')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('balance:delete')
     removePermanently(@Param('id') id: string) {
         return this.categoriasGestorService.removePermanently(id);

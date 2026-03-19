@@ -72,7 +72,7 @@ export class OrdersController {
   }
 
   @Patch(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('table:edit')
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
     return this.ordersService.updateOrder(id, data);
@@ -145,7 +145,7 @@ export class OrdersController {
   }
 
   @Get('priority')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('stock:view')
   getOrderPriority(
     @Query('fecha') fecha: string,
@@ -155,7 +155,7 @@ export class OrdersController {
   }
 
   @Post('express/:id/duplicate')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('stock:edit')
   duplicateExpressOrder(
     @Param('id') id: string,

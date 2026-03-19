@@ -21,7 +21,7 @@ export class StockController {
     constructor(private readonly stockService: StockService) { }
 
     @Post()
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('stock:edit')
     create(@Body() createStockDto: CreateStockDto) {
         return this.stockService.createStock(createStockDto);
@@ -63,28 +63,28 @@ export class StockController {
     }
 
     @Patch(':id')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('stock:edit')
     update(@Param('id') id: string, @Body() updateStockDto: UpdateStockDto) {
         return this.stockService.updateStock(id, updateStockDto);
     }
 
     @Post('initialize')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('stock:edit')
     initializeStockForDate(@Body() data: { puntoEnvio: string; date: string }) {
         return this.stockService.initializeStockForDate(data.puntoEnvio, data.date);
     }
 
     @Post('recalculate')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('stock:edit')
     recalculateStockChain(@Body() data: { puntoEnvio: string; startDate: string }) {
         return this.stockService.recalculateStockChain(data.puntoEnvio, data.startDate);
     }
 
     @Delete(':id')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('stock:delete')
     remove(@Param('id') id: string) {
         return this.stockService.deleteStock(id);

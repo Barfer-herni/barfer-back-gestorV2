@@ -58,6 +58,16 @@ export function normalizeDeliveryDay(dateInput: any): Date {
     if (!dateInput) return new Date();
     let date: Date;
 
+    // Si es un string ISO (ej: 2026-03-19T00:00:00.000Z), extraer solo la parte de la fecha
+    // para evitar que el constructor de Date lo desplace por zona horaria al usar getFullYear/getMonth/getDate
+    if (typeof dateInput === 'string') {
+        const datePart = dateInput.substring(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [year, month, day] = datePart.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+    }
+
     if (typeof dateInput === 'object' && '$date' in dateInput) {
         date = new Date(dateInput.$date);
     } else if (dateInput instanceof Date) {
@@ -65,18 +75,24 @@ export function normalizeDeliveryDay(dateInput: any): Date {
     } else {
         date = new Date(dateInput);
     }
+
     if (isNaN(date.getTime())) throw new BadRequestException('Invalid date');
-    const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    return localDate;
+
+    // Retornar fecha a las 00:00:00 hora local
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 export function validateAndNormalizePhone(phone: string): string | null {
     if (!phone) return null;
 
+    // Limpiar caracteres no numéricos excepto guiones
     let cleanPhone = phone.toString().trim();
     cleanPhone = cleanPhone.replace(/[^\d-]/g, '');
+
+    // Eliminar guiones para procesar
     let digitsOnly = cleanPhone.replace(/-/g, '');
 
+    // Eliminar prefijos comunes
     const prefixesToRemove = ['549', '54', '0', '0221'];
 
     for (const prefix of prefixesToRemove) {
@@ -86,18 +102,22 @@ export function validateAndNormalizePhone(phone: string): string | null {
         }
     }
 
+    // Caso especial: eliminar el 9 inicial si quedó después de los prefijos
     if (digitsOnly.startsWith('9')) {
         digitsOnly = digitsOnly.substring(1);
     }
 
-    if (digitsOnly.length < 7 || digitsOnly.length > 10) {
+    // Validar longitud (7 a 15 para permitir internacionales o formatos largos)
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
         return null;
     }
 
+    // Si empieza con prefijos conocidos, aceptar
     if (digitsOnly.startsWith('221') || digitsOnly.startsWith('11') || digitsOnly.startsWith('15')) {
         return digitsOnly;
     }
 
+    // Normalización de longitud fija (La Plata / CABA)
     if (digitsOnly.length === 7) {
         return '221' + digitsOnly;
     }
@@ -106,9 +126,12 @@ export function validateAndNormalizePhone(phone: string): string | null {
         return '11' + digitsOnly;
     }
 
-    if (digitsOnly.length === 10) {
+    // Para 10 a 15 dígitos, aceptar tal cual si no coincide con lo anterior
+    if (digitsOnly.length >= 10 && digitsOnly.length <= 15) {
         return digitsOnly;
     }
 
-    return null;
+    // Si tiene longitud válida pero no patrón conocido, devolver el número limpio 
+    // en lugar de null para no bloquear la edición
+    return digitsOnly;
 }

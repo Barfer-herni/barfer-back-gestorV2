@@ -21,7 +21,7 @@ export class PuntosVentaController {
 
 
   @Post('create')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('mayoristas:create')
   create(@Body() dto: CreatePuntoVentaDto) {
     return this.service.createPuntoVenta(dto);
@@ -53,7 +53,7 @@ export class PuntosVentaController {
 
 
   @Patch(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('mayoristas:edit')
   update(
     @Param('id') id: string,
@@ -63,7 +63,7 @@ export class PuntosVentaController {
   }
 
   @Delete(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('mayoristas:delete')
   remove(@Param('id') id: string) {
     return this.service.deletePuntoVenta(id);

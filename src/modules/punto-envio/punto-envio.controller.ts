@@ -45,7 +45,7 @@ export class PuntoEnvioController {
   }
 
   @Post()
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('table:edit')
   create(@Body() data: PuntoEnvioDto): Promise<{
     success: boolean;
@@ -57,14 +57,14 @@ export class PuntoEnvioController {
   }
 
   @Patch(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('table:edit')
   update(@Param('id') id: string, @Body() dto: UpdatePuntoEnvioDto) {
     return this.puntoEnvioService.update(id, dto);
   }
 
   @Delete(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('table:delete')
   remove(@Param('id') id: string) {
     return this.puntoEnvioService.remove(id);

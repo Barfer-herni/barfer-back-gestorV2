@@ -25,7 +25,7 @@ export class PricesController {
   constructor(private readonly pricesService: PricesService) { }
 
   @Post()
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:edit')
   create(@Body() data: PriceDto) {
     return this.pricesService.createPrice(data);
@@ -82,7 +82,7 @@ export class PricesController {
   }
 
   @Patch('product')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:edit')
   updateProduct(
     @Query('section') section: Section,
@@ -99,14 +99,14 @@ export class PricesController {
   }
 
   @Patch(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:edit')
   update(@Param('id') id: string, @Body() data: UpdatePriceDto) {
     return this.pricesService.updatePrice(id, data);
   }
 
   @Patch('product/price-types')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:edit')
   updatePriceTypes(
     @Body() data: {
@@ -127,7 +127,7 @@ export class PricesController {
   }
 
   @Delete('product')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:delete')
   deleteProduct(
     @Query('section') section: Section,
@@ -138,14 +138,14 @@ export class PricesController {
   }
 
   @Delete(':id')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:delete')
   delete(@Param('id') id: string) {
     return this.pricesService.deletePrice(id);
   }
 
   @Post('initialize-period')
-  @Auth(Roles.Admin)
+  @Auth(Roles.User)
   @Permissions('prices:edit')
   initializePeriod(@Body() data: { month: number; year: number }) {
     return this.pricesService.initializePricesForPeriod(data.month, data.year);

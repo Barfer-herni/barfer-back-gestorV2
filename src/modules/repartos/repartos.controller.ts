@@ -34,7 +34,7 @@ export class RepartosController {
     }
 
     @Post('initialize/:weekKey')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async initializeWeek(@Param('weekKey') weekKey: string) {
         const success = await this.repartosService.initializeWeek(weekKey);
@@ -42,7 +42,7 @@ export class RepartosController {
     }
 
     @Post(':weekKey')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async saveRepartosWeek(
         @Param('weekKey') weekKey: string,
@@ -53,7 +53,7 @@ export class RepartosController {
     }
 
     @Put(':weekKey/:dayKey/:rowIndex')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async updateRepartoEntry(
         @Param('weekKey') weekKey: string,
@@ -71,7 +71,7 @@ export class RepartosController {
     }
 
     @Patch('toggle/:weekKey/:dayKey/:rowIndex')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async toggleRepartoCompletion(
         @Param('weekKey') weekKey: string,
@@ -87,7 +87,7 @@ export class RepartosController {
     }
 
     @Post('add-row/:weekKey/:dayKey')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async addRowToDay(
         @Param('weekKey') weekKey: string,
@@ -98,7 +98,7 @@ export class RepartosController {
     }
 
     @Delete('remove-row/:weekKey/:dayKey/:rowIndex')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:edit')
     async removeRowFromDay(
         @Param('weekKey') weekKey: string,
@@ -114,7 +114,7 @@ export class RepartosController {
     }
 
     @Delete(':weekKey')
-    @Auth(Roles.Admin)
+    @Auth(Roles.User)
     @Permissions('repartos:delete')
     async deleteRepartosWeek(@Param('weekKey') weekKey: string) {
         const success = await this.repartosService.deleteRepartosWeek(weekKey);
