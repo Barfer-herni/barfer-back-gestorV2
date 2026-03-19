@@ -73,7 +73,7 @@ export class OrdersController {
 
   @Patch(':id')
   @Auth(Roles.User)
-  @Permissions('table:edit')
+  @Permissions('table:edit', 'stock:edit')
   update(@Param('id') id: string, @Body() data: UpdateOrderDto) {
     return this.ordersService.updateOrder(id, data);
   }
