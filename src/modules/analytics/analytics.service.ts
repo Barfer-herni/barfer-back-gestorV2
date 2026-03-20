@@ -693,71 +693,26 @@ export class AnalyticsService {
       if (startDate) match.createdAt.$gte = new Date(startDate);
       if (endDate) match.createdAt.$lte = new Date(endDate);
     }
-
-    // const pipeline: PipelineStage[] = [
-    //   { $match: match },
-    //   { $unwind: '$items' },
-    //   { $unwind: '$items.options' },
-
-    //   {
-    //     $group: {
-    //       _id: {
-    //         productId: '$items.id',
-    //         productName: '$items.name',
-    //         optionName: '$items.options.name'
-    //       },
-
-    //       totalQuantity: { $sum: '$items.options.quantity' },
-
-    //       totalRevenue: {
-    //         $sum: {
-    //           $multiply: [
-    //             '$items.options.quantity',
-    //             '$items.options.price'
-    //           ]
-    //         }
-    //       },
-
-    //       orders: { $addToSet: '$_id' },
-
-    //       avgPrice: { $avg: '$items.options.price' }
-    //     }
-    //   },
-
-    //   {
-    //     $project: {
-    //       _id: 1,
-    //       totalQuantity: 1,
-    //       totalRevenue: 1,
-    //       avgPrice: 1,
-    //       orderCount: { $size: '$orders' }
-    //     }
-    //   },
-
-    //   { $sort: { totalQuantity: -1 } as any },
-    //   { $limit: limit }
-    // ];
-
     const pipeline: PipelineStage[] = [
       { $match: match },
       { $unwind: '$items' },
       { $unwind: '$items.options' },
-      // Filtro para incluir solo productos relevantes y excluir los no deseados
       {
         $match: {
           'items.name': {
             $regex: /pollo|vaca|cerdo|cordero|big dog|huesos|carnosos/i
           },
           $and: [
-            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento/i } }
+            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } },
+            { 'items.options.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } }
           ]
         }
       },
       {
         $group: {
           _id: {
-            productName: '$items.name',
-            optionName: '$items.options.name'
+            productName: { $toUpper: '$items.name' },
+            optionName: { $toUpper: '$items.options.name' }
           },
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } },
@@ -775,7 +730,6 @@ export class AnalyticsService {
     const result = await this.orderModel.aggregate(pipeline);
     return result.map(item => {
       const weight = calculateItemWeight(item._id.productName, item._id.optionName);
-      // Creamos un ID sintético que el frontend usará para pedir el timeline
       const syntheticId = `${item._id.productName}###${item._id.optionName}`;
 
       return {
@@ -890,7 +844,8 @@ export class AnalyticsService {
             $regex: /pollo|vaca|cerdo|cordero|big dog|huesos|carnosos/i
           },
           $and: [
-            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento/i } }
+            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } },
+            { 'items.options.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } }
           ]
         }
       },
@@ -898,8 +853,8 @@ export class AnalyticsService {
         $group: {
           _id: {
             period: { $dateToString: { format: periodFormat, date: { $toDate: '$createdAt' } } },
-            productName: '$items.name',
-            optionName: '$items.options.name',
+            productName: { $toUpper: '$items.name' },
+            optionName: { $toUpper: '$items.options.name' },
           },
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.price', '$items.options.quantity'] } },
