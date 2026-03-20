@@ -55,6 +55,7 @@
     "sdk-node-payway": "^1.0.6",
     "streamifier": "^0.1.1",
     "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {

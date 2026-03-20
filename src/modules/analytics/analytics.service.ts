@@ -742,17 +742,30 @@ export class AnalyticsService {
       { $match: match },
       { $unwind: '$items' },
       { $unwind: '$items.options' },
+      // Filtro para incluir solo productos relevantes y excluir los no deseados
+      {
+        $match: {
+          'items.name': {
+            $regex: /pollo|vaca|cerdo|cordero|big dog|huesos|carnosos/i
+          },
+          $and: [
+            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento/i } }
+          ]
+        }
+      },
       {
         $group: {
           _id: {
-            productId: '$items.id',
             productName: '$items.name',
             optionName: '$items.options.name'
           },
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } },
           orderCount: { $sum: 1 },
-          avgPrice: { $avg: '$items.options.price' }
+          avgPrice: { $avg: '$items.options.price' },
+          // Usamos uno de los IDs reales solo como referencia si fuera necesario, 
+          // pero el productId que devolvemos será sintético para asegurar consistencia
+          realProductId: { $first: '$items.id' }
         }
       },
       { $sort: { totalQuantity: -1 } as any },
@@ -762,8 +775,11 @@ export class AnalyticsService {
     const result = await this.orderModel.aggregate(pipeline);
     return result.map(item => {
       const weight = calculateItemWeight(item._id.productName, item._id.optionName);
+      // Creamos un ID sintético que el frontend usará para pedir el timeline
+      const syntheticId = `${item._id.productName}###${item._id.optionName}`;
+
       return {
-        productId: item._id.productId,
+        productId: syntheticId,
         productName: item._id.productName,
         optionName: item._id.optionName,
         quantity: item.totalQuantity,
@@ -853,18 +869,35 @@ export class AnalyticsService {
     };
 
     if (productIds && productIds.length > 0) {
-      matchStage['items.id'] = { $in: productIds };
+      const filters = productIds.map(id => {
+        if (id.includes('###')) {
+          const [name, option] = id.split('###');
+          return { 'items.name': name, 'items.options.name': option };
+        }
+        return { 'items.id': id }; // Fallback para IDs antiguos si los hubiera
+      });
+      matchStage.$or = filters;
     }
 
     const pipeline: PipelineStage[] = [
       { $match: matchStage },
       { $unwind: '$items' },
       { $unwind: '$items.options' },
+      // Filtro para incluir solo productos relevantes y excluir los no deseados
+      {
+        $match: {
+          'items.name': {
+            $regex: /pollo|vaca|cerdo|cordero|big dog|huesos|carnosos/i
+          },
+          $and: [
+            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento/i } }
+          ]
+        }
+      },
       {
         $group: {
           _id: {
             period: { $dateToString: { format: periodFormat, date: { $toDate: '$createdAt' } } },
-            productId: '$items.id',
             productName: '$items.name',
             optionName: '$items.options.name',
           },
@@ -879,7 +912,7 @@ export class AnalyticsService {
           _id: '$_id.period',
           products: {
             $push: {
-              productId: '$_id.productId',
+              productId: { $concat: ['$_id.productName', '###', '$_id.optionName'] },
               productName: '$_id.productName',
               optionName: '$_id.optionName',
               totalQuantity: '$totalQuantity',
@@ -1032,7 +1065,7 @@ export class AnalyticsService {
       }
 
       const entry = getMonthEntry(targetList, monthKey);
-      
+
       // USAMOS LA UTILITY ORIGINAL PARA PRECISIÓN DEL 100%
       const weight = calculateItemWeight(item._id.productName, item._id.optionName);
       const totalWeight = weight * item.totalQuantity;
