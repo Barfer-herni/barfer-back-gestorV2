@@ -92,7 +92,15 @@ export class AnalyticsService {
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } },
           orderCount: { $sum: 1 },
-          uniqueProducts: { $addToSet: '$items.name' },
+          uniqueProducts: { 
+            $addToSet: { 
+              $concat: [
+                { $toUpper: '$items.name' }, 
+                "-", 
+                { $toUpper: { $ifNull: ['$items.options.name', ''] } }
+              ] 
+            } 
+          },
           avgPrice: { $avg: '$items.options.price' },
           items: {
             $push: {
@@ -126,12 +134,62 @@ export class AnalyticsService {
         return acc + weight * productItem.quantity;
       }, 0);
 
+      // Canonical processing for unique products
+      let uniqueProductsCount = item.uniqueProducts;
+      
+      if (item._id === 'PERRO') {
+        const products = new Set();
+        item.items.forEach((p: any) => {
+           const name = (p.productName || '').toUpperCase();
+           const option = (p.optionName || '').toUpperCase();
+           let flavor = 'OTROS';
+           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+           
+           let size = '5KG';
+           if (name.includes('10KG') || name.includes('10 KG') || option.includes('10KG') || option.includes('10 KG')) size = '10KG';
+           
+           products.add(`${flavor}-${size}`);
+        });
+        uniqueProductsCount = products.size;
+      } else if (item._id === 'GATO') {
+        const products = new Set();
+        item.items.forEach((p: any) => {
+           const name = (p.productName || '').toUpperCase();
+           const option = (p.optionName || '').toUpperCase();
+           let flavor = 'OTROS';
+           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+           products.add(flavor);
+        });
+        uniqueProductsCount = products.size;
+      } else if (item._id === 'BIG DOG') {
+        const products = new Set();
+        item.items.forEach((p: any) => {
+           const name = (p.productName || '').toUpperCase();
+           const option = (p.optionName || '').toUpperCase();
+           let flavor = 'OTROS';
+           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+           products.add(flavor);
+        });
+        uniqueProductsCount = products.size;
+      } else if (item._id === 'HUESOS CARNOSOS' || item._id === 'COMPLEMENTOS') {
+        uniqueProductsCount = 1;
+      }
+
       return {
         categoryName: item._id,
         quantity: item.totalQuantity,
         revenue: item.totalRevenue,
         orders: item.orderCount,
-        uniqueProducts: item.uniqueProducts,
+        uniqueProducts: uniqueProductsCount,
         avgPrice: Math.round(item.avgPrice),
         statusFilter: statusFilter || 'all',
         totalWeight: totalWeight > 0 ? totalWeight : null,
