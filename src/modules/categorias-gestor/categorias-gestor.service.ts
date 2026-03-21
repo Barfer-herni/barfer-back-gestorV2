@@ -36,13 +36,11 @@ export class CategoriasGestorService {
         }
     }
 
-    /**
-     * Obtener todas las categorías (incluyendo inactivas)
-     */
+
     async findAll() {
         try {
             const categorias = await this.categoriaGestorModel
-                .find({})
+                .find({ isActive: true })
                 .sort({ nombre: 1 })
                 .exec();
 
