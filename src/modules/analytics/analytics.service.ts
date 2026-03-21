@@ -8,6 +8,7 @@ import { PaymentsGestor } from '../../schemas/payments-gestor.schema';
 import { Salidas } from '../../schemas/salidas.schema';
 import { calculateItemWeight } from '../../common/utils/weightUtils';
 import * as moment from 'moment';
+import { canonicalizeProductName } from './helpers/analytics.helpers';
 
 @Injectable()
 export class AnalyticsService {
@@ -92,14 +93,14 @@ export class AnalyticsService {
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } },
           orderCount: { $sum: 1 },
-          uniqueProducts: { 
-            $addToSet: { 
+          uniqueProducts: {
+            $addToSet: {
               $concat: [
-                { $toUpper: '$items.name' }, 
-                "-", 
+                { $toUpper: '$items.name' },
+                "-",
                 { $toUpper: { $ifNull: ['$items.options.name', ''] } }
-              ] 
-            } 
+              ]
+            }
           },
           avgPrice: { $avg: '$items.options.price' },
           items: {
@@ -136,48 +137,48 @@ export class AnalyticsService {
 
       // Canonical processing for unique products
       let uniqueProductsCount = item.uniqueProducts;
-      
+
       if (item._id === 'PERRO') {
         const products = new Set();
         item.items.forEach((p: any) => {
-           const name = (p.productName || '').toUpperCase();
-           const option = (p.optionName || '').toUpperCase();
-           let flavor = 'OTROS';
-           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
-           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
-           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
-           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
-           
-           let size = '5KG';
-           if (name.includes('10KG') || name.includes('10 KG') || option.includes('10KG') || option.includes('10 KG')) size = '10KG';
-           
-           products.add(`${flavor}-${size}`);
+          const name = (p.productName || '').toUpperCase();
+          const option = (p.optionName || '').toUpperCase();
+          let flavor = 'OTROS';
+          if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+          else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+          else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+          else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+
+          let size = '5KG';
+          if (name.includes('10KG') || name.includes('10 KG') || option.includes('10KG') || option.includes('10 KG')) size = '10KG';
+
+          products.add(`${flavor}-${size}`);
         });
         uniqueProductsCount = products.size;
       } else if (item._id === 'GATO') {
         const products = new Set();
         item.items.forEach((p: any) => {
-           const name = (p.productName || '').toUpperCase();
-           const option = (p.optionName || '').toUpperCase();
-           let flavor = 'OTROS';
-           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
-           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
-           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
-           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
-           products.add(flavor);
+          const name = (p.productName || '').toUpperCase();
+          const option = (p.optionName || '').toUpperCase();
+          let flavor = 'OTROS';
+          if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+          else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+          else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+          else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+          products.add(flavor);
         });
         uniqueProductsCount = products.size;
       } else if (item._id === 'BIG DOG') {
         const products = new Set();
         item.items.forEach((p: any) => {
-           const name = (p.productName || '').toUpperCase();
-           const option = (p.optionName || '').toUpperCase();
-           let flavor = 'OTROS';
-           if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
-           else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
-           else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
-           else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
-           products.add(flavor);
+          const name = (p.productName || '').toUpperCase();
+          const option = (p.optionName || '').toUpperCase();
+          let flavor = 'OTROS';
+          if (name.includes('POLLO') || option.includes('POLLO')) flavor = 'POLLO';
+          else if (name.includes('VACA') || option.includes('VACA')) flavor = 'VACA';
+          else if (name.includes('CERDO') || option.includes('CERDO')) flavor = 'CERDO';
+          else if (name.includes('CORDERO') || option.includes('CORDERO')) flavor = 'CORDERO';
+          products.add(flavor);
         });
         uniqueProductsCount = products.size;
       } else if (item._id === 'HUESOS CARNOSOS' || item._id === 'COMPLEMENTOS') {
@@ -751,6 +752,9 @@ export class AnalyticsService {
       if (startDate) match.createdAt.$gte = new Date(startDate);
       if (endDate) match.createdAt.$lte = new Date(endDate);
     }
+
+    console.log(match)
+
     const pipeline: PipelineStage[] = [
       { $match: match },
       { $unwind: '$items' },
@@ -761,23 +765,31 @@ export class AnalyticsService {
             $regex: /pollo|vaca|cerdo|cordero|big dog|huesos|carnosos/i
           },
           $and: [
-            { 'items.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } },
-            { 'items.options.name': { $not: /garra|oreja|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } }
+            { 'items.name': { $not: /garra|oreja|recreativos|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } },
+            { 'items.options.name': { $not: /garra|oreja|recreativos|traquea|cornalito|caldo|complemento|\d+\s*GRS/i } }
           ]
         }
       },
       {
         $group: {
           _id: {
-            productName: { $toUpper: '$items.name' },
+            productName: {
+              $trim: {
+                input: {
+                  $replaceAll: {
+                    input: { $toUpper: '$items.name' },
+                    find: 'BARFER ',
+                    replacement: ''
+                  }
+                }
+              }
+            },
             optionName: { $toUpper: '$items.options.name' }
           },
           totalQuantity: { $sum: '$items.options.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.options.quantity', '$items.options.price'] } },
           orderCount: { $sum: 1 },
           avgPrice: { $avg: '$items.options.price' },
-          // Usamos uno de los IDs reales solo como referencia si fuera necesario, 
-          // pero el productId que devolvemos será sintético para asegurar consistencia
           realProductId: { $first: '$items.id' }
         }
       },
@@ -786,21 +798,68 @@ export class AnalyticsService {
     ];
 
     const result = await this.orderModel.aggregate(pipeline);
-    return result.map(item => {
-      const weight = calculateItemWeight(item._id.productName, item._id.optionName);
-      const syntheticId = `${item._id.productName}###${item._id.optionName}`;
+
+    const normalized = result.map(item => {
+      const canonicalName = canonicalizeProductName(
+        item._id.productName,
+        item._id.optionName
+      );
+      const unitWeight = calculateItemWeight(canonicalName, item._id.optionName);
 
       return {
-        productId: syntheticId,
-        productName: item._id.productName,
-        optionName: item._id.optionName,
+        canonicalName,
         quantity: item.totalQuantity,
         revenue: item.totalRevenue,
         orders: item.orderCount,
-        avgPrice: Math.round(item.avgPrice),
-        totalWeight: weight > 0 ? weight * item.totalQuantity : null
+        avgPrice: item.avgPrice,
+        unitWeight,
       };
     });
+    const grouped = new Map<string, {
+      productId: string;
+      productName: string;
+      quantity: number;
+      revenue: number;
+      orders: number;
+      totalWeight: number;
+      avgPrices: number[];
+    }>();
+
+    for (const row of normalized) {
+      const key = row.canonicalName;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          productId: `${row.canonicalName}###CANONICAL`,
+          productName: row.canonicalName,
+          quantity: 0,
+          revenue: 0,
+          orders: 0,
+          totalWeight: 0,
+          avgPrices: [],
+        });
+      }
+
+      const g = grouped.get(key)!;
+      g.quantity += row.quantity;
+      g.revenue += row.revenue;
+      g.orders += row.orders;
+      g.totalWeight += row.unitWeight > 0 ? row.unitWeight * row.quantity : 0;
+      g.avgPrices.push(row.avgPrice);
+    }
+
+    return Array.from(grouped.values())
+      .map(g => ({
+        productId: g.productId,
+        productName: g.productName,
+        quantity: g.quantity,
+        revenue: g.revenue,
+        orders: g.orders,
+        avgPrice: Math.round(g.avgPrices.reduce((a, b) => a + b, 0) / g.avgPrices.length),
+        totalWeight: g.totalWeight > 0 ? g.totalWeight : null,
+      }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, limit);
   }
 
   async getProductsByTimePeriod(startDate: string, endDate: string): Promise<any> {
