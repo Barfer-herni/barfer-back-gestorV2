@@ -21,7 +21,7 @@ export class ProveedoresController {
 
     @Post()
     @Auth(Roles.Admin)
-    @Permissions('proveedores:edit')
+    @Permissions('proveedores:edit', 'outputs:edit')
     create(@Body() createProveedorDto: CreateProveedorDto) {
         return this.proveedoresService.createProveedor(createProveedorDto);
     }
@@ -29,7 +29,7 @@ export class ProveedoresController {
     /** GET /proveedores — solo activos */
     @Get()
     @Auth(Roles.User)
-    @Permissions('proveedores:view')
+    @Permissions('proveedores:view', 'outputs:view')
     findAll() {
         return this.proveedoresService.getAllProveedores();
     }
@@ -37,7 +37,7 @@ export class ProveedoresController {
     /** GET /proveedores/all — activos + inactivos */
     @Get('all')
     @Auth(Roles.User)
-    @Permissions('proveedores:view')
+    @Permissions('proveedores:view', 'outputs:view')
     findAllIncludingInactive() {
         return this.proveedoresService.getAllProveedoresIncludingInactive();
     }
@@ -45,21 +45,21 @@ export class ProveedoresController {
     /** GET /proveedores/search?q=término */
     @Get('search')
     @Auth(Roles.User)
-    @Permissions('proveedores:view')
+    @Permissions('proveedores:view', 'outputs:view')
     search(@Query('q') q: string) {
         return this.proveedoresService.searchProveedores(q ?? '');
     }
 
     @Get(':id')
     @Auth(Roles.User)
-    @Permissions('proveedores:view')
+    @Permissions('proveedores:view', 'outputs:view')
     findOne(@Param('id') id: string) {
         return this.proveedoresService.getProveedorById(id);
     }
 
     @Patch(':id')
     @Auth(Roles.Admin)
-    @Permissions('proveedores:edit')
+    @Permissions('proveedores:edit', 'outputs:edit')
     update(@Param('id') id: string, @Body() updateProveedorDto: UpdateProveedorDto) {
         return this.proveedoresService.updateProveedor(id, updateProveedorDto);
     }
@@ -67,7 +67,7 @@ export class ProveedoresController {
     /** DELETE hace soft-delete (isActive: false), no elimina el documento */
     @Delete(':id')
     @Auth(Roles.Admin)
-    @Permissions('proveedores:delete')
+    @Permissions('proveedores:delete', 'outputs:edit')
     remove(@Param('id') id: string) {
         return this.proveedoresService.deleteProveedor(id);
     }
