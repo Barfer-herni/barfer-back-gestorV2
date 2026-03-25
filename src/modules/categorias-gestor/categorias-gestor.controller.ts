@@ -42,7 +42,7 @@ export class CategoriasGestorController {
 
     @Get('all')
     @Auth(Roles.User)
-    @Permissions('balance:view')
+    @Permissions('balance:view', 'outputs:view')
     findAll() {
         return this.categoriasGestorService.findAll();
     }
