@@ -90,18 +90,55 @@ export class UsersService {
           orderCount: { $size: '$userOrders' },
           totalSpent: { $sum: '$userOrders.total' },
           lastOrderDate: { $max: '$userOrders.createdAt' },
-          hasOrderBefore120Days: {
-            $gt: [
-              {
-                $size: {
+          firstRecentOrder: {
+            $min: {
+              $map: {
+                input: {
                   $filter: {
                     input: '$userOrders',
                     as: 'o',
-                    cond: { $lt: ['$$o.createdAt', oneTwentyDaysAgo] }
+                    cond: { $gte: ['$$o.createdAt', ninetyDaysAgo] }
                   }
-                }
+                },
+                as: 'rf',
+                in: '$$rf.createdAt'
+              }
+            }
+          },
+          lastOldOrder: {
+            $max: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$userOrders',
+                    as: 'o',
+                    cond: { $lt: ['$$o.createdAt', ninetyDaysAgo] }
+                  }
+                },
+                as: 'of',
+                in: '$$of.createdAt'
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          isRecovered: {
+            $cond: [
+              { $and: ['$firstRecentOrder', '$lastOldOrder'] },
+              {
+                $gte: [
+                  {
+                    $divide: [
+                      { $subtract: ['$firstRecentOrder', '$lastOldOrder'] },
+                      1000 * 60 * 60 * 24
+                    ]
+                  },
+                  120
+                ]
               },
-              0
+              false
             ]
           }
         }
@@ -135,13 +172,7 @@ export class UsersService {
                   then: 'tracking'
                 },
                 {
-                  case: {
-                    $and: [
-                      { $gte: ['$orderCount', 2] },
-                      { $gte: ['$lastOrderDate', ninetyDaysAgo] },
-                      { $eq: ['$hasOrderBefore120Days', true] }
-                    ]
-                  },
+                  case: { $eq: ['$isRecovered', true] },
                   then: 'recovered'
                 },
                 {

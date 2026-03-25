@@ -368,6 +368,8 @@ export class AnalyticsService {
       if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
     }
 
+    console.log("pepe")
+    console.log(matchCondition);
     const pipeline: PipelineStage[] = [
       { $match: matchCondition },
       {
@@ -407,6 +409,14 @@ export class AnalyticsService {
     const totalOrders = data.totalOrders;
     const totalRevenue = data.totalRevenue;
     const customersWithMultipleOrders = data.customersWithMultipleOrders;
+
+    console.log("pepe2")
+    console.log(data);
+    console.log("pepe3")
+    console.log(totalOrders);
+    console.log("pepe4")
+    console.log(totalCustomers);
+    console.log("pepe5")
 
     return {
       averageOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,
