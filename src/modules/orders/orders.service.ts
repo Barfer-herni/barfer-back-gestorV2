@@ -1020,6 +1020,7 @@ export class OrdersService {
         paymentMethodDiscount: 1,
         couponDiscount: 1,
         paymentMethod: 1,
+        notes: 1,
         notesOwn: 1,
         orderType: 1,
         'user.name': 1,
