@@ -6,7 +6,6 @@ export class RepartoEntryDto {
     id: string;
 
     @IsString()
-    @IsNotEmpty()
     text: string;
 
     @IsBoolean()

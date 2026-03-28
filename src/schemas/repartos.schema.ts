@@ -6,7 +6,7 @@ export class RepartoEntry {
     @Prop({ required: true })
     id: string;
 
-    @Prop({ required: true })
+    @Prop({ default: '' })
     text: string;
 
     @Prop({ default: false })
