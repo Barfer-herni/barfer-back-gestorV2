@@ -94,6 +94,7 @@ export class UsersService {
           lastName: 1,
           phoneNumber: 1,
           orderCount: { $size: '$userOrders' },
+          totalSpent: { $sum: '$userOrders.total' },
           lastOrderDate: { $max: '$userOrders.createdAt' },
           firstRecentOrder: {
             $min: {
@@ -346,9 +347,10 @@ export class UsersService {
       id: u._id?.toString(),
       email: u.email,
       name: `${u.name || ''}${u.lastName ? ' ' + u.lastName : ''}`.trim(),
-      phoneNumber: u.phoneNumber || null,
+      phone: u.phoneNumber || null,
       orderCount: u.orderCount,
-      lastOrderDate: u.lastOrderDate,
+      lastOrder: u.lastOrderDate ?? null,
+      totalSpent: u.totalSpent || 0,
       behaviorCategory: u.behaviorCategory,
       spendingCategory: spendingMap.get(u.email) || 'basic',
     }));
