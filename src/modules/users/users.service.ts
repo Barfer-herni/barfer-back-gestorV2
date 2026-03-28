@@ -58,6 +58,331 @@ export class UsersService {
 
   ///// ESTADISTICAS
 
+  async getClientsForWhatsapp(params?: {
+    category?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const { category, type, page = 1, limit = 50 } = params || {};
+
+    const now = new Date();
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(now.getDate() - 90);
+    const oneTwentyDaysAgo = new Date();
+    oneTwentyDaysAgo.setDate(now.getDate() - 120);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
+    // Obtener categorías de comportamiento por usuario
+    const behaviorAggregation = await this.userModel.aggregate([
+      { $match: { role: { $ne: 1 } } },
+      {
+        $lookup: {
+          from: 'orders',
+          localField: 'email',
+          foreignField: 'user.email',
+          as: 'userOrders',
+        },
+      },
+      {
+        $project: {
+          email: 1,
+          name: 1,
+          lastName: 1,
+          phoneNumber: 1,
+          orderCount: { $size: '$userOrders' },
+          lastOrderDate: { $max: '$userOrders.createdAt' },
+          firstRecentOrder: {
+            $min: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$userOrders',
+                    as: 'o',
+                    cond: { $gte: ['$$o.createdAt', ninetyDaysAgo] },
+                  },
+                },
+                as: 'rf',
+                in: '$$rf.createdAt',
+              },
+            },
+          },
+          lastOldOrder: {
+            $max: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$userOrders',
+                    as: 'o',
+                    cond: { $lt: ['$$o.createdAt', ninetyDaysAgo] },
+                  },
+                },
+                as: 'of',
+                in: '$$of.createdAt',
+              },
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          isRecovered: {
+            $cond: [
+              { $and: ['$firstRecentOrder', '$lastOldOrder'] },
+              {
+                $gte: [
+                  {
+                    $divide: [
+                      { $subtract: ['$firstRecentOrder', '$lastOldOrder'] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  120,
+                ],
+              },
+              false,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          behaviorCategory: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $and: [
+                      { $eq: ['$orderCount', 1] },
+                      { $gte: ['$lastOrderDate', sevenDaysAgo] },
+                    ],
+                  },
+                  then: 'new',
+                },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ['$orderCount', 1] },
+                      { $lt: ['$lastOrderDate', sevenDaysAgo] },
+                      { $gte: ['$lastOrderDate', thirtyDaysAgo] },
+                    ],
+                  },
+                  then: 'tracking',
+                },
+                { case: { $eq: ['$isRecovered', true] }, then: 'recovered' },
+                { case: { $gte: ['$lastOrderDate', ninetyDaysAgo] }, then: 'active' },
+                {
+                  case: {
+                    $and: [
+                      { $lt: ['$lastOrderDate', ninetyDaysAgo] },
+                      { $gte: ['$lastOrderDate', oneTwentyDaysAgo] },
+                    ],
+                  },
+                  then: 'possible-inactive',
+                },
+              ],
+              default: 'lost',
+            },
+          },
+        },
+      },
+    ]);
+
+    // Obtener categorías de gasto por usuario (last 30 days)
+    const spendingAggregation = await this.orderModel.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      {
+        $project: {
+          userEmail: { $ifNull: ['$user.email', '$address.email'] },
+          items: 1,
+        },
+      },
+      { $unwind: '$items' },
+      {
+        $addFields: {
+          firstOption: { $arrayElemAt: ['$items.options', 0] },
+        },
+      },
+      {
+        $addFields: {
+          fullText: {
+            $concat: [
+              { $ifNull: ['$items.name', ''] },
+              ' ',
+              { $ifNull: ['$items.description', ''] },
+              ' ',
+              { $ifNull: ['$firstOption.name', ''] },
+              ' ',
+              { $ifNull: ['$firstOption.description', ''] },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          weightMatches: {
+            $regexFindAll: {
+              input: '$fullText',
+              regex: '(\\d+(?:[.,]\\d+)?)\\s*([Kk][Gg]|[Gg][Rr][Ss]?|[Gg]|[Cc][Cc]|[Mm][Ll])',
+            },
+          },
+          itemQty: {
+            $ifNull: ['$items.quantity', { $ifNull: ['$firstOption.quantity', 1] }],
+          },
+        },
+      },
+      {
+        $addFields: {
+          itemWeight: {
+            $let: {
+              vars: {
+                processedMatches: {
+                  $map: {
+                    input: '$weightMatches',
+                    as: 'm',
+                    in: {
+                      value: {
+                        $convert: {
+                          input: {
+                            $replaceAll: {
+                              input: { $arrayElemAt: ['$$m.captures', 0] },
+                              find: ',',
+                              replacement: '.',
+                            },
+                          },
+                          to: 'double',
+                          onError: 0,
+                          onNull: 0,
+                        },
+                      },
+                      isKg: {
+                        $regexMatch: {
+                          input: { $arrayElemAt: ['$$m.captures', 1] },
+                          regex: '[Kk][Gg]',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              in: {
+                $let: {
+                  vars: {
+                    kgMatches: {
+                      $filter: {
+                        input: '$$processedMatches',
+                        as: 'pm',
+                        cond: '$$pm.isKg',
+                      },
+                    },
+                  },
+                  in: {
+                    $cond: [
+                      { $gt: [{ $size: '$$kgMatches' }, 0] },
+                      {
+                        $reduce: {
+                          input: '$$kgMatches',
+                          initialValue: 0,
+                          in: { $add: ['$$value', '$$this.value'] },
+                        },
+                      },
+                      {
+                        $reduce: {
+                          input: '$$processedMatches',
+                          initialValue: 0,
+                          in: { $add: ['$$value', { $multiply: ['$$this.value', 0.001] }] },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id',
+          email: { $first: '$userEmail' },
+          totalKgInOrder: { $sum: { $multiply: ['$itemWeight', '$itemQty'] } },
+        },
+      },
+      {
+        $group: {
+          _id: '$email',
+          totalKg: { $sum: '$totalKgInOrder' },
+        },
+      },
+      {
+        $project: {
+          spendingCategory: {
+            $switch: {
+              branches: [
+                { case: { $gt: ['$totalKg', 15] }, then: 'premium' },
+                {
+                  case: { $and: [{ $gt: ['$totalKg', 5] }, { $lte: ['$totalKg', 15] }] },
+                  then: 'standard',
+                },
+              ],
+              default: 'basic',
+            },
+          },
+        },
+      },
+    ]);
+
+    // Construir mapa email -> spendingCategory
+    const spendingMap = new Map<string, string>();
+    spendingAggregation.forEach((s) => {
+      if (s._id) spendingMap.set(s._id, s.spendingCategory);
+    });
+
+    // Combinar datos y aplicar filtros
+    let clients = behaviorAggregation.map((u) => ({
+      id: u._id?.toString(),
+      email: u.email,
+      name: `${u.name || ''}${u.lastName ? ' ' + u.lastName : ''}`.trim(),
+      phoneNumber: u.phoneNumber || null,
+      orderCount: u.orderCount,
+      lastOrderDate: u.lastOrderDate,
+      behaviorCategory: u.behaviorCategory,
+      spendingCategory: spendingMap.get(u.email) || 'basic',
+    }));
+
+    // Filtrar por categoría y tipo si se especifican
+    if (category && type) {
+      clients = clients.filter((c) => {
+        if (type === 'behavior') return c.behaviorCategory === category;
+        if (type === 'spending') return c.spendingCategory === category;
+        return true;
+      });
+    } else if (category) {
+      // Sin tipo especificado, buscar en ambos
+      clients = clients.filter(
+        (c) => c.behaviorCategory === category || c.spendingCategory === category,
+      );
+    }
+
+    const totalCount = clients.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const skip = (page - 1) * limit;
+    const paginatedClients = clients.slice(skip, skip + limit);
+
+    return {
+      clients: paginatedClients,
+      pagination: {
+        totalCount,
+        totalPages,
+        currentPage: page,
+        hasMore: page < totalPages,
+      },
+    };
+  }
+
   async getClientAnalytics() {
     const now = new Date();
     const ninetyDaysAgo = new Date();

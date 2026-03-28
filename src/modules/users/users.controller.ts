@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { Roles } from '../../common/enums/roles.enum';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -50,5 +50,21 @@ export class UsersController {
   @Auth(Roles.Admin)
   getAnalytics() {
     return this.userService.getClientAnalytics();
+  }
+
+  @Get('clients-for-whatsapp')
+  @Auth(Roles.Admin)
+  getClientsForWhatsapp(
+    @Query('category') category?: string,
+    @Query('type') type?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.userService.getClientsForWhatsapp({
+      category,
+      type,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+    });
   }
 }
