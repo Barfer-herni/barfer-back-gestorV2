@@ -29,6 +29,7 @@ import { CategoriasGestorModule } from '../categorias-gestor/categorias-gestor.m
 import { MetodosPagoModule } from '../metodos-pago/metodos-pago.module';
 import { TemplatePricesProductsModule } from '../template_prices_products/template_prices_products.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { SurveysModule } from '../surveys/surveys.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     MetodosPagoModule,
     TemplatePricesProductsModule,
     AnalyticsModule,
+    SurveysModule,
   ],
   controllers: [AppController],
   providers: [AppService],
