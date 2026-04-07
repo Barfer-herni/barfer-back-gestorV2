@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Survey } from '../../schemas/surveys.schema';
 import { SurveyResponse } from '../../schemas/survey_responses';
+import { Order } from '../../schemas/order.schema';
 
 @Injectable()
 export class SurveysService {
@@ -10,6 +11,7 @@ export class SurveysService {
     @InjectModel(Survey.name) private surveyModel: Model<Survey>,
     @InjectModel(SurveyResponse.name)
     private responseModel: Model<SurveyResponse>,
+    @InjectModel(Order.name) private orderModel: Model<Order>,
   ) { }
 
 
@@ -48,11 +50,42 @@ export class SurveysService {
     return response.save();
   }
 
-  async findResponsesBySurvey(surveyId: string): Promise<SurveyResponse[]> {
-    return this.responseModel
+  async findResponsesBySurvey(surveyId: string): Promise<any[]> {
+    const responses = await this.responseModel
       .find({ surveyId: new Types.ObjectId(surveyId) })
       .populate('userId', 'email')
+      .lean()
       .exec();
+
+    const emails = responses.map((r: any) => r.userId?.email).filter(Boolean);
+
+    const orders = await this.orderModel.find({
+      'user.email': { $in: emails }
+    }).select('user.email deliveryArea.sameDayDelivery').lean().exec();
+
+    orders.sort((a: any, b: any) => String(b._id).localeCompare(String(a._id)));
+
+    const expressMap = new Map<string, boolean>();
+    for (const order of orders) {
+      if (order.user?.email && !expressMap.has(order.user.email)) {
+        expressMap.set(order.user.email, !!order.deliveryArea?.sameDayDelivery);
+      }
+    }
+
+    return responses.map((r: any) => {
+      let shippingType = 'Desconocido';
+      if (r.userId?.email) {
+        if (expressMap.has(r.userId.email)) {
+          shippingType = expressMap.get(r.userId.email) ? 'Express' : 'Programado';
+        } else {
+          shippingType = 'Sin pedidos';
+        }
+      }
+      return {
+        ...r,
+        shippingType,
+      };
+    });
   }
 
   /**

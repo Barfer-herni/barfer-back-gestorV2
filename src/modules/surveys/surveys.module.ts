@@ -7,12 +7,14 @@ import {
   SurveyResponse,
   SurveyResponseSchema,
 } from '../../schemas/survey_responses';
+import { Order, OrderSchema } from '../../schemas/order.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Survey.name, schema: SurveySchema },
       { name: SurveyResponse.name, schema: SurveyResponseSchema },
+      { name: Order.name, schema: OrderSchema },
     ]),
   ],
   controllers: [SurveysController],
