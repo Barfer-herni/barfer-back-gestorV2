@@ -433,9 +433,7 @@ export class AnalyticsService {
   async getDeliveryTypeStatsByMonth(): Promise<any> {
     const pipeline: PipelineStage[] = [
       {
-        $match: {
-          status: { $in: ['confirmed', 'pending', 'delivered'] }
-        }
+        $match: {}
       },
       {
         $project: {
@@ -495,43 +493,38 @@ export class AnalyticsService {
 
       const stats = statsMap.get(month);
       const category = order.deliveryCategory;
-      const isConfirmed = ['confirmed', 'delivered'].includes(order.status);
-
       // Count orders (all statuses)
       if (category === 'sameDay') stats.sameDayOrders++;
       else if (category === 'wholesale') stats.wholesaleOrders++;
       else stats.normalOrders++;
 
-      // Revenue and Weight (only confirmed/delivered?) 
-      // Most analytics show revenue for confirmed only to avoid noise
-      if (isConfirmed) {
-        const revenue = order.total || 0;
-        let weight = 0;
+      // Revenue and Weight (matching QuantityStatsByMonth, summing all statuses)
+      const revenue = order.total || 0;
+      let weight = 0;
 
-        if (order.items && Array.isArray(order.items)) {
-          order.items.forEach((item: any) => {
-            if (item.options && Array.isArray(item.options)) {
-              item.options.forEach((opt: any) => {
-                const itemWeight = calculateItemWeight(item.name, opt.name);
-                weight += itemWeight * (opt.quantity || 1);
-              });
-            } else {
-              const itemWeight = calculateItemWeight(item.name, '');
-              weight += itemWeight * (item.quantity || 1);
-            }
-          });
-        }
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item: any) => {
+          if (item.options && Array.isArray(item.options)) {
+            item.options.forEach((opt: any) => {
+              const itemWeight = calculateItemWeight(item.name, opt.name);
+              weight += itemWeight * (opt.quantity || 1);
+            });
+          } else {
+            const itemWeight = calculateItemWeight(item.name, '');
+            weight += itemWeight * (item.quantity || 1);
+          }
+        });
+      }
 
-        if (category === 'sameDay') {
-          stats.sameDayRevenue += revenue;
-          stats.sameDayWeight += weight;
-        } else if (category === 'wholesale') {
-          stats.wholesaleRevenue += revenue;
-          stats.wholesaleWeight += weight;
-        } else {
-          stats.normalRevenue += revenue;
-          stats.normalWeight += weight;
-        }
+      if (category === 'sameDay') {
+        stats.sameDayRevenue += revenue;
+        stats.sameDayWeight += weight;
+      } else if (category === 'wholesale') {
+        stats.wholesaleRevenue += revenue;
+        stats.wholesaleWeight += weight;
+      } else {
+        stats.normalRevenue += revenue;
+        stats.normalWeight += weight;
       }
     });
 
