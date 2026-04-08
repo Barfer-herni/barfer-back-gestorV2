@@ -703,7 +703,17 @@ export class OrdersService {
             totalExpress: {
               $sum: {
                 $cond: [
-                  { $eq: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] },
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      {
+                        $or: [
+                          { $eq: ['$deliveryArea.sameDayDelivery', true] },
+                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                        ]
+                      }
+                    ]
+                  },
                   '$total',
                   0
                 ]
@@ -712,7 +722,17 @@ export class OrdersService {
             cantExpress: {
               $sum: {
                 $cond: [
-                  { $eq: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] },
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
+                      {
+                        $or: [
+                          { $eq: ['$deliveryArea.sameDayDelivery', true] },
+                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                        ]
+                      }
+                    ]
+                  },
                   1,
                   0
                 ]
@@ -721,12 +741,7 @@ export class OrdersService {
             totalMayorista: {
               $sum: {
                 $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
-                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
-                    ]
-                  },
+                  { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
                   '$total',
                   0
                 ]
@@ -735,12 +750,7 @@ export class OrdersService {
             cantMayorista: {
               $sum: {
                 $cond: [
-                  {
-                    $and: [
-                      { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
-                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
-                    ]
-                  },
+                  { $eq: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
                   1,
                   0
                 ]
@@ -752,7 +762,8 @@ export class OrdersService {
                   {
                     $and: [
                       { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
-                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                      { $ne: ['$deliveryArea.sameDayDelivery', true] },
+                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } }
                     ]
                   },
                   '$total',
@@ -766,7 +777,8 @@ export class OrdersService {
                   {
                     $and: [
                       { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
-                      { $ne: [{ $ifNull: ['$paymentMethod', ''] }, 'bank-transfer'] }
+                      { $ne: ['$deliveryArea.sameDayDelivery', true] },
+                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } }
                     ]
                   },
                   1,
