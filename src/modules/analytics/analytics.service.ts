@@ -440,12 +440,34 @@ export class AnalyticsService {
           total: 1,
           status: 1,
           createdAt: 1,
+          deliveryDay: 1,
           items: 1,
           orderType: 1,
           paymentMethod: 1,
           'deliveryArea.sameDayDelivery': 1,
           monthKey: {
-            $dateToString: { format: '%Y-%m', date: { $toDate: '$createdAt' } }
+            $dateToString: { 
+              format: '%Y-%m', 
+              date: { 
+                $ifNull: [
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                      { $toDate: "$deliveryDay" },
+                      "$deliveryDay"
+                    ]
+                  },
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$createdAt" }, "string"] },
+                      { $toDate: "$createdAt" },
+                      "$createdAt"
+                    ]
+                  }
+                ]
+              },
+              timezone: 'America/Argentina/Buenos_Aires'
+            }
           },
           deliveryCategory: {
             $cond: [
@@ -456,7 +478,7 @@ export class AnalyticsService {
                   {
                     $or: [
                       { $eq: ['$deliveryArea.sameDayDelivery', true] },
-                      { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                      { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] }
                     ]
                   },
                   'sameDay',
@@ -571,12 +593,34 @@ export class AnalyticsService {
 
   async getOrdersByMonth(): Promise<any> {
     const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      },
       { $match: { status: { $in: ['confirmed', 'pending', 'delivered'] } } },
       {
         $group: {
           _id: {
-            year: { $year: { $toDate: '$createdAt' } },
-            month: { $month: { $toDate: '$createdAt' } }
+            year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
           },
           orderCount: { $sum: 1 },
           revenue: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'delivered']] }, '$total', 0] } },
@@ -1079,23 +1123,51 @@ export class AnalyticsService {
   async getQuantityStatsByMonth(startDate?: string, endDate?: string, puntoEnvio?: string): Promise<any> {
     const matchCondition: any = {};
     if (startDate || endDate) {
-      matchCondition.createdAt = {};
-      if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
-      if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
+      matchCondition.referenceDate = {};
+      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
+      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
     }
     if (puntoEnvio && puntoEnvio !== 'all') {
       matchCondition.puntoEnvio = puntoEnvio;
     }
 
-    const pipeline: PipelineStage[] = [
-      { $match: matchCondition },
+    const pipeline: PipelineStage[] = [];
+    
+    pipeline.push({
+      $addFields: {
+        referenceDate: {
+          $ifNull: [
+            {
+              $cond: [
+                { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                { $toDate: "$deliveryDay" },
+                "$deliveryDay"
+              ]
+            },
+            {
+              $cond: [
+                { $eq: [{ $type: "$createdAt" }, "string"] },
+                { $toDate: "$createdAt" },
+                "$createdAt"
+              ]
+            }
+          ]
+        }
+      }
+    });
+
+    if (Object.keys(matchCondition).length > 0) {
+      pipeline.push({ $match: matchCondition });
+    }
+
+    pipeline.push(
       { $unwind: '$items' },
       { $unwind: '$items.options' },
       {
         $group: {
           _id: {
-            year: { $year: { $toDate: '$createdAt' } },
-            month: { $month: { $toDate: '$createdAt' } },
+            year: { $year: '$referenceDate' },
+            month: { $month: '$referenceDate' },
             orderType: { $ifNull: ['$orderType', 'minorista'] },
             sameDayDelivery: '$deliveryArea.sameDayDelivery',
             puntoEnvio: { $ifNull: ['$deliveryArea.puntoEnvio', '$puntoEnvio'] },
@@ -1106,7 +1178,7 @@ export class AnalyticsService {
         }
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } as any }
-    ];
+    );
 
     const results = await this.orderModel.aggregate(pipeline);
 

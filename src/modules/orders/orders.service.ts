@@ -509,16 +509,54 @@ export class OrdersService {
 
       // Filtro por fecha si se proporciona
       if ((from && from.trim() !== '') || (to && to.trim() !== '')) {
-        baseFilter.deliveryDay = {};
+        // Para coincidir con el Balance, buscamos tanto en deliveryDay como en createdAt
+        // y usamos el inicio/fin del día en horario local (Argentina)
+        const dateFilter: any[] = [];
+        
         if (from && from.trim() !== '') {
           const [year, month, day] = from.split('-').map(Number);
+          // 00:00:00.000 local
           const fromDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
-          baseFilter.deliveryDay.$gte = fromDateObj;
+          dateFilter.push({
+            $or: [
+              { deliveryDay: { $gte: fromDateObj } },
+              { $and: [
+                  { deliveryDay: { $exists: false } },
+                  { createdAt: { $gte: fromDateObj } }
+                ] 
+              },
+              { $and: [
+                { deliveryDay: null },
+                { createdAt: { $gte: fromDateObj } }
+              ] 
+            }
+            ]
+          });
         }
+        
         if (to && to.trim() !== '') {
           const [year, month, day] = to.split('-').map(Number);
+          // 23:59:59.999 local
           const toDateObj = new Date(year, month - 1, day, 23, 59, 59, 999);
-          baseFilter.deliveryDay.$lte = toDateObj;
+          dateFilter.push({
+            $or: [
+              { deliveryDay: { $lte: toDateObj } },
+              { $and: [
+                  { deliveryDay: { $exists: false } },
+                  { createdAt: { $lte: toDateObj } }
+                ] 
+              },
+              { $and: [
+                { deliveryDay: null },
+                { createdAt: { $lte: toDateObj } }
+              ] 
+            }
+            ]
+          });
+        }
+        
+        if (dateFilter.length > 0) {
+          baseFilter.$and.push(...dateFilter);
         }
       }
 
@@ -666,24 +704,35 @@ export class OrdersService {
     try {
       const ordersMatchCondition: any = {};
       if (startDate || endDate) {
-        ordersMatchCondition.createdAt = {};
-        if (startDate) ordersMatchCondition.createdAt.$gte = startDate;
-        if (endDate) ordersMatchCondition.createdAt.$lte = endDate;
+        ordersMatchCondition.referenceDate = {};
+        if (startDate) ordersMatchCondition.referenceDate.$gte = startDate;
+        if (endDate) ordersMatchCondition.referenceDate.$lte = endDate;
       } else {
         const currentYear = new Date().getFullYear();
         const yearStartDate = new Date(currentYear - 2, 0, 1);
         const yearEndDate = new Date(currentYear, 11, 31, 23, 59, 59);
-        ordersMatchCondition.createdAt = { $gte: yearStartDate, $lte: yearEndDate };
+        ordersMatchCondition.referenceDate = { $gte: yearStartDate, $lte: yearEndDate };
       }
 
       const ordersPipeline: any[] = [];
       ordersPipeline.push({
         $addFields: {
-          createdAt: {
-            $cond: [
-              { $eq: [{ $type: "$createdAt" }, "string"] },
-              { $toDate: "$createdAt" },
-              "$createdAt"
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
             ]
           }
         }
@@ -697,8 +746,8 @@ export class OrdersService {
         {
           $group: {
             _id: {
-              year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' }
+              year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+              month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
             },
             totalExpress: {
               $sum: {
