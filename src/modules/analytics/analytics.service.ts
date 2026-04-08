@@ -49,17 +49,41 @@ export class AnalyticsService {
   }
 
   async getCategorySales(statusFilter: string = 'all', limit: number = 10, startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [];
+    
+    pipeline.push({
+      $addFields: {
+        referenceDate: {
+          $ifNull: [
+            {
+              $cond: [
+                { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                { $toDate: "$deliveryDay" },
+                "$deliveryDay"
+              ]
+            },
+            {
+              $cond: [
+                { $eq: [{ $type: "$createdAt" }, "string"] },
+                { $toDate: "$createdAt" },
+                "$createdAt"
+              ]
+            }
+          ]
+        }
+      }
+    });
+
     const matchCondition: any = {};
     if (statusFilter !== 'all') {
       matchCondition.status = statusFilter;
     }
     if (startDate || endDate) {
-      matchCondition.createdAt = {};
-      if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
-      if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
+      matchCondition.referenceDate = {};
+      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
+      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
     }
 
-    const pipeline: PipelineStage[] = [];
     if (Object.keys(matchCondition).length > 0) {
       pipeline.push({ $match: matchCondition });
     }
@@ -361,17 +385,40 @@ export class AnalyticsService {
   }
 
   async getCustomerInsights(startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [];
+    
+    pipeline.push({
+      $addFields: {
+        referenceDate: {
+          $ifNull: [
+            {
+              $cond: [
+                { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                { $toDate: "$deliveryDay" },
+                "$deliveryDay"
+              ]
+            },
+            {
+              $cond: [
+                { $eq: [{ $type: "$createdAt" }, "string"] },
+                { $toDate: "$createdAt" },
+                "$createdAt"
+              ]
+            }
+          ]
+        }
+      }
+    });
+
     const matchCondition: any = { status: { $in: ['confirmed', 'delivered'] } };
     if (startDate || endDate) {
-      matchCondition.createdAt = {};
-      if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
-      if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
+      matchCondition.referenceDate = {};
+      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
+      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
     }
 
-    console.log("pepe")
-    console.log(matchCondition);
-    const pipeline: PipelineStage[] = [
-      { $match: matchCondition },
+    pipeline.push({ $match: matchCondition });
+    pipeline.push(
       {
         $group: {
           _id: { $ifNull: ['$user.id', '$user.email'] },
@@ -388,7 +435,7 @@ export class AnalyticsService {
           customersWithMultipleOrders: { $sum: { $cond: [{ $gt: ['$orderCount', 1] }, 1, 0] } }
         }
       }
-    ];
+    );
 
     const results = await this.orderModel.aggregate(pipeline);
     if (!results.length) {
@@ -562,27 +609,53 @@ export class AnalyticsService {
   }
 
   async getOrdersByDay(startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ];
+
     const match: any = { status: { $in: ['confirmed', 'pending', 'delivered'] } };
     if (startDate || endDate) {
-      match.createdAt = {};
-      if (startDate) match.createdAt.$gte = new Date(startDate);
-      if (endDate) match.createdAt.$lte = new Date(endDate);
+      match.referenceDate = {};
+      if (startDate) match.referenceDate.$gte = new Date(startDate);
+      if (endDate) match.referenceDate.$lte = new Date(endDate);
     }
-    const pipeline: PipelineStage[] = [
+
+    pipeline.push(
       { $match: match },
       {
         $group: {
           _id: {
-            year: { $year: { $toDate: '$createdAt' } },
-            month: { $month: { $toDate: '$createdAt' } },
-            day: { $dayOfMonth: { $toDate: '$createdAt' } }
+            year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
           },
           orderCount: { $sum: 1 },
           revenue: { $sum: '$total' }
         }
       },
       { $sort: { '_id.year': 1 as const, '_id.month': 1 as const, '_id.day': 1 as const } }
-    ];
+    );
     const results = await this.orderModel.aggregate(pipeline);
     return results.map(item => ({
       date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
@@ -644,18 +717,42 @@ export class AnalyticsService {
   }
 
   async getPaymentMethodStats(startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [];
+    
+    pipeline.push({
+      $addFields: {
+        referenceDate: {
+          $ifNull: [
+            {
+              $cond: [
+                { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                { $toDate: "$deliveryDay" },
+                "$deliveryDay"
+              ]
+            },
+            {
+              $cond: [
+                { $eq: [{ $type: "$createdAt" }, "string"] },
+                { $toDate: "$createdAt" },
+                "$createdAt"
+              ]
+            }
+          ]
+        }
+      }
+    });
+
     const matchCondition: any = {
       status: { $in: ['confirmed', 'pending', 'delivered'] },
-      // paymentMethod: { $ne: 'bank-transfer' }
     };
 
     if (startDate || endDate) {
-      matchCondition.createdAt = {};
-      if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
-      if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
+      matchCondition.referenceDate = {};
+      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
+      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
     }
 
-    const pipeline: PipelineStage[] = [
+    pipeline.push(
       { $match: matchCondition },
       {
         $addFields: {
@@ -664,7 +761,7 @@ export class AnalyticsService {
               {
                 $and: [
                   { $eq: ['$paymentMethod', 'bank-transfer'] },
-                  { $gte: [{ $toDate: '$createdAt' }, new Date('2026-01-01')] }
+                  { $gte: [{ $toDate: '$referenceDate' }, new Date('2026-01-01')] }
                 ]
               },
               'mercado-pago',
@@ -684,7 +781,7 @@ export class AnalyticsService {
           pendingRevenue: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$total', 0] } }
         }
       }
-    ];
+    );
 
     const results = await this.orderModel.aggregate(pipeline);
 
@@ -726,8 +823,30 @@ export class AnalyticsService {
   async getPaymentsByTimePeriod(startDate: string, endDate: string, periodType: string = 'daily'): Promise<any> {
     const pipeline: PipelineStage[] = [
       {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
         $match: {
-          createdAt: {
+          referenceDate: {
             $gte: new Date(startDate),
             $lte: new Date(endDate)
           }
@@ -740,7 +859,7 @@ export class AnalyticsService {
               {
                 $and: [
                   { $eq: ['$paymentMethod', 'bank-transfer'] },
-                  { $gte: [{ $toDate: '$createdAt' }, new Date('2026-01-01')] }
+                  { $gte: [{ $toDate: '$referenceDate' }, new Date('2026-01-01')] }
                 ]
               },
               'mercado-pago',
@@ -754,13 +873,23 @@ export class AnalyticsService {
     let groupId: any;
     switch (periodType) {
       case 'daily':
-        groupId = { year: { $year: { $toDate: '$createdAt' } }, month: { $month: { $toDate: '$createdAt' } }, day: { $dayOfMonth: { $toDate: '$createdAt' } } };
+        groupId = { 
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+          day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        };
         break;
       case 'weekly':
-        groupId = { year: { $year: { $toDate: '$createdAt' } }, week: { $week: { $toDate: '$createdAt' } } };
+        groupId = { 
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+          week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        };
         break;
       case 'monthly':
-        groupId = { year: { $year: { $toDate: '$createdAt' } }, month: { $month: { $toDate: '$createdAt' } } };
+        groupId = { 
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        };
         break;
     }
 
@@ -792,17 +921,40 @@ export class AnalyticsService {
   }
 
   async getProductSales(statusFilter: string = 'all', limit: number = 50, startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ];
+
     const match: any = {};
     if (statusFilter !== 'all') match.status = statusFilter;
     if (startDate || endDate) {
-      match.createdAt = {};
-      if (startDate) match.createdAt.$gte = new Date(startDate);
-      if (endDate) match.createdAt.$lte = new Date(endDate);
+      match.referenceDate = {};
+      if (startDate) match.referenceDate.$gte = new Date(startDate);
+      if (endDate) match.referenceDate.$lte = new Date(endDate);
     }
 
-    console.log(match)
-
-    const pipeline: PipelineStage[] = [
+    pipeline.push(
       { $match: match },
       { $unwind: '$items' },
       { $unwind: '$items.options' },
@@ -842,7 +994,7 @@ export class AnalyticsService {
       },
       { $sort: { totalQuantity: -1 } as any },
       { $limit: limit }
-    ];
+    );
 
     const result = await this.orderModel.aggregate(pipeline);
 
@@ -916,17 +1068,49 @@ export class AnalyticsService {
 
     let groupBy: any;
     if (daysDiff <= 31) {
-      groupBy = { year: { $year: { $toDate: '$createdAt' } }, month: { $month: { $toDate: '$createdAt' } }, day: { $dayOfMonth: { $toDate: '$createdAt' } } };
+      groupBy = { 
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+        day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      };
     } else if (daysDiff <= 90) {
-      groupBy = { year: { $year: { $toDate: '$createdAt' } }, week: { $week: { $toDate: '$createdAt' } } };
+      groupBy = { 
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+        week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      };
     } else {
-      groupBy = { year: { $year: { $toDate: '$createdAt' } }, month: { $month: { $toDate: '$createdAt' } } };
+      groupBy = { 
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
+        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      };
     }
 
     const pipeline: PipelineStage[] = [
       {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
         $match: {
-          createdAt: { $gte: start, $lte: end },
+          referenceDate: { $gte: start, $lte: end },
           status: { $in: ['pending', 'confirmed'] },
         },
       },
@@ -982,7 +1166,7 @@ export class AnalyticsService {
     else periodFormat = '%Y-%m';
 
     const matchStage: any = {
-      createdAt: { $gte: start, $lte: end },
+      referenceDate: { $gte: start, $lte: end },
       status: { $in: ['confirmed', 'pending'] },
     };
 
@@ -998,6 +1182,28 @@ export class AnalyticsService {
     }
 
     const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      },
       { $match: matchStage },
       { $unwind: '$items' },
       { $unwind: '$items.options' },
@@ -1016,7 +1222,7 @@ export class AnalyticsService {
       {
         $group: {
           _id: {
-            period: { $dateToString: { format: periodFormat, date: { $toDate: '$createdAt' } } },
+            period: { $dateToString: { format: periodFormat, date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
             productName: { $toUpper: '$items.name' },
             optionName: { $toUpper: '$items.options.name' },
           },
@@ -1064,20 +1270,45 @@ export class AnalyticsService {
   }
 
   async getPurchaseFrequency(startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ];
+
     const matchCondition: any = { status: { $in: ['confirmed', 'delivered'] } };
     if (startDate || endDate) {
-      matchCondition.createdAt = {};
-      if (startDate) matchCondition.createdAt.$gte = new Date(startDate);
-      if (endDate) matchCondition.createdAt.$lte = new Date(endDate);
+      matchCondition.referenceDate = {};
+      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
+      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
     }
 
-    const pipeline: PipelineStage[] = [
+    pipeline.push(
       { $match: matchCondition },
-      { $sort: { createdAt: 1 } },
+      { $sort: { referenceDate: 1 } },
       {
         $group: {
           _id: { $ifNull: ['$user.id', '$user.email'] },
-          dates: { $push: '$createdAt' }
+          dates: { $push: '$referenceDate' }
         }
       },
       {
@@ -1090,7 +1321,7 @@ export class AnalyticsService {
       {
         $match: { dateCount: { $gt: 1 } }
       }
-    ];
+    );
 
     const results = await this.orderModel.aggregate(pipeline);
 
@@ -1166,8 +1397,8 @@ export class AnalyticsService {
       {
         $group: {
           _id: {
-            year: { $year: '$referenceDate' },
-            month: { $month: '$referenceDate' },
+            year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
             orderType: { $ifNull: ['$orderType', 'minorista'] },
             sameDayDelivery: '$deliveryArea.sameDayDelivery',
             puntoEnvio: { $ifNull: ['$deliveryArea.puntoEnvio', '$puntoEnvio'] },
@@ -1256,27 +1487,53 @@ export class AnalyticsService {
   }
 
   async getRevenueByDay(startDate?: string, endDate?: string): Promise<any> {
+    const pipeline: PipelineStage[] = [
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ];
+
     const match: any = { status: { $in: ['confirmed', 'delivered'] } };
     if (startDate || endDate) {
-      match.createdAt = {};
-      if (startDate) match.createdAt.$gte = new Date(startDate);
-      if (endDate) match.createdAt.$lte = new Date(endDate);
+      match.referenceDate = {};
+      if (startDate) match.referenceDate.$gte = new Date(startDate);
+      if (endDate) match.referenceDate.$lte = new Date(endDate);
     }
-    const pipeline: PipelineStage[] = [
+
+    pipeline.push(
       { $match: match },
       {
         $group: {
           _id: {
-            year: { $year: { $toDate: '$createdAt' } },
-            month: { $month: { $toDate: '$createdAt' } },
-            day: { $dayOfMonth: { $toDate: '$createdAt' } }
+            year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+            day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
           },
           orderCount: { $sum: 1 },
           revenue: { $sum: '$total' }
         }
       },
       { $sort: { '_id.year': 1 as const, '_id.month': 1 as const, '_id.day': 1 as const } }
-    ];
+    );
     const results = await this.orderModel.aggregate(pipeline);
     return results.map(item => ({
       date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
