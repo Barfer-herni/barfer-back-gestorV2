@@ -505,6 +505,12 @@ export class OrdersService {
             { deliveryArea: { $exists: false } },
           ],
         },
+        {
+          $or: [
+            { puntoEnvio: { $in: [null, ''] } },
+            { puntoEnvio: { $exists: false } },
+          ],
+        },
       ];
 
       // Filtro por fecha si se proporciona
@@ -512,7 +518,7 @@ export class OrdersService {
         // Para coincidir con el Balance, buscamos tanto en deliveryDay como en createdAt
         // y usamos el inicio/fin del día en horario local (Argentina)
         const dateFilter: any[] = [];
-        
+
         if (from && from.trim() !== '') {
           const [year, month, day] = from.split('-').map(Number);
           // 00:00:00.000 local
@@ -520,20 +526,22 @@ export class OrdersService {
           dateFilter.push({
             $or: [
               { deliveryDay: { $gte: fromDateObj } },
-              { $and: [
+              {
+                $and: [
                   { deliveryDay: { $exists: false } },
                   { createdAt: { $gte: fromDateObj } }
-                ] 
+                ]
               },
-              { $and: [
-                { deliveryDay: null },
-                { createdAt: { $gte: fromDateObj } }
-              ] 
-            }
+              {
+                $and: [
+                  { deliveryDay: null },
+                  { createdAt: { $gte: fromDateObj } }
+                ]
+              }
             ]
           });
         }
-        
+
         if (to && to.trim() !== '') {
           const [year, month, day] = to.split('-').map(Number);
           // 23:59:59.999 local
@@ -541,20 +549,22 @@ export class OrdersService {
           dateFilter.push({
             $or: [
               { deliveryDay: { $lte: toDateObj } },
-              { $and: [
+              {
+                $and: [
                   { deliveryDay: { $exists: false } },
                   { createdAt: { $lte: toDateObj } }
-                ] 
+                ]
               },
-              { $and: [
-                { deliveryDay: null },
-                { createdAt: { $lte: toDateObj } }
-              ] 
-            }
+              {
+                $and: [
+                  { deliveryDay: null },
+                  { createdAt: { $lte: toDateObj } }
+                ]
+              }
             ]
           });
         }
-        
+
         if (dateFilter.length > 0) {
           baseFilter.$and.push(...dateFilter);
         }
@@ -758,7 +768,8 @@ export class OrdersService {
                       {
                         $or: [
                           { $eq: ['$deliveryArea.sameDayDelivery', true] },
-                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] },
+                          { $ne: [{ $ifNull: ['$puntoEnvio', ''] }, ''] }
                         ]
                       }
                     ]
@@ -777,7 +788,8 @@ export class OrdersService {
                       {
                         $or: [
                           { $eq: ['$deliveryArea.sameDayDelivery', true] },
-                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] }
+                          { $in: ['$paymentMethod', ['bank-transfer', 'transfer']] },
+                          { $ne: [{ $ifNull: ['$puntoEnvio', ''] }, ''] }
                         ]
                       }
                     ]
@@ -812,7 +824,8 @@ export class OrdersService {
                     $and: [
                       { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
                       { $ne: ['$deliveryArea.sameDayDelivery', true] },
-                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } }
+                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } },
+                      { $eq: [{ $ifNull: ['$puntoEnvio', ''] }, ''] }
                     ]
                   },
                   '$total',
@@ -827,7 +840,8 @@ export class OrdersService {
                     $and: [
                       { $ne: [{ $ifNull: ['$orderType', 'minorista'] }, 'mayorista'] },
                       { $ne: ['$deliveryArea.sameDayDelivery', true] },
-                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } }
+                      { $not: { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] } },
+                      { $eq: [{ $ifNull: ['$puntoEnvio', ''] }, ''] }
                     ]
                   },
                   1,
@@ -966,10 +980,15 @@ export class OrdersService {
   ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
     try {
       const filter: any = {
-        $or: [
-          { paymentMethod: 'bank-transfer' },
-          { 'deliveryArea.sameDayDelivery': true },
-          { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+        $and: [
+          {
+            $or: [
+              { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
+              { 'deliveryArea.sameDayDelivery': true },
+              { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+            ]
+          },
+          { orderType: { $ne: 'mayorista' } }
         ]
       };
 
@@ -1005,27 +1024,16 @@ export class OrdersService {
         const fromVal = from?.trim() || '';
         const toVal = to?.trim() || fromVal;
 
-        let fromDateUTC: Date | undefined;
-        let toDateUTC: Date | undefined;
+        let fromDateObj: Date | undefined;
+        let toDateObj: Date | undefined;
 
         if (fromVal) {
           const [year, month, day] = fromVal.split('-').map(Number);
-          fromDateUTC = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+          fromDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
         }
         if (toVal) {
           const [year, month, day] = toVal.split('-').map(Number);
-          toDateUTC = new Date(Date.UTC(year, month - 1, day + 1, 2, 59, 59, 999));
-        }
-
-        let fromDeliveryUTC: Date | undefined;
-        let toDeliveryUTC: Date | undefined;
-        if (fromVal) {
-          const [year, month, day] = fromVal.split('-').map(Number);
-          fromDeliveryUTC = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-        }
-        if (toVal) {
-          const [year, month, day] = toVal.split('-').map(Number);
-          toDeliveryUTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+          toDateObj = new Date(year, month - 1, day, 23, 59, 59, 999);
         }
 
         filter.$and = [
@@ -1033,8 +1041,8 @@ export class OrdersService {
             $or: [
               {
                 deliveryDay: {
-                  ...(fromDeliveryUTC && { $gte: fromDeliveryUTC }),
-                  ...(toDeliveryUTC && { $lte: toDeliveryUTC })
+                  ...(fromDateObj && { $gte: fromDateObj }),
+                  ...(toDateObj && { $lte: toDateObj })
                 }
               },
               {
@@ -1042,8 +1050,8 @@ export class OrdersService {
                   { deliveryDay: { $exists: false } },
                   {
                     createdAt: {
-                      ...(fromDateUTC && { $gte: fromDateUTC }),
-                      ...(toDateUTC && { $lte: toDateUTC })
+                      ...(fromDateObj && { $gte: fromDateObj }),
+                      ...(toDateObj && { $lte: toDateObj })
                     }
                   }
                 ]
@@ -1053,8 +1061,8 @@ export class OrdersService {
                   { deliveryDay: null },
                   {
                     createdAt: {
-                      ...(fromDateUTC && { $gte: fromDateUTC }),
-                      ...(toDateUTC && { $lte: toDateUTC })
+                      ...(fromDateObj && { $gte: fromDateObj }),
+                      ...(toDateObj && { $lte: toDateObj })
                     }
                   }
                 ]
@@ -1132,35 +1140,59 @@ export class OrdersService {
   ): Promise<any> {
     try {
       const match: any = {
-        $or: [
-          { paymentMethod: 'bank-transfer' },
-          { 'deliveryArea.sameDayDelivery': true },
-          { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+        $and: [
+          {
+            $or: [
+              { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
+              { 'deliveryArea.sameDayDelivery': true },
+              { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+            ]
+          },
+          { orderType: { $ne: 'mayorista' } }
         ]
       };
 
       if (puntoEnvio) match.puntoEnvio = puntoEnvio;
 
+      const matchAnd: any[] = [match];
+
       if (from || to) {
         const dateFilter: any = {};
         if (from) {
           const [y, m, d] = from.split('-').map(Number);
-          dateFilter.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+          dateFilter.$gte = new Date(y, m - 1, d, 0, 0, 0, 0);
         }
         if (to) {
           const [y, m, d] = to.split('-').map(Number);
-          dateFilter.$lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+          dateFilter.$lte = new Date(y, m - 1, d, 23, 59, 59, 999);
         }
-        match.createdAt = dateFilter;
-      } else {
-        const currentYear = new Date().getFullYear();
-        match.createdAt = {
-          $gte: new Date(Date.UTC(currentYear, 0, 1, 0, 0, 0, 0))
-        };
+        matchAnd.push({ referenceDate: dateFilter });
       }
 
       const metrics = await this.orderModel.aggregate([
-        { $match: match },
+        {
+          $addFields: {
+            referenceDate: {
+              $ifNull: [
+                {
+                  $cond: [
+                    { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                    { $toDate: "$deliveryDay" },
+                    "$deliveryDay"
+                  ]
+                },
+                {
+                  $cond: [
+                    { $eq: [{ $type: "$createdAt" }, "string"] },
+                    { $toDate: "$createdAt" },
+                    "$createdAt"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        { $match: { $and: matchAnd } },
         {
           $facet: {
             summary: [
@@ -1199,7 +1231,7 @@ export class OrdersService {
               {
                 $group: {
                   _id: {
-                    month: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                    month: { $dateToString: { format: "%Y-%m", date: "$referenceDate", timezone: 'America/Argentina/Buenos_Aires' } },
                     puntoEnvio: "$puntoEnvio"
                   },
                   totalRevenue: { $sum: '$total' },

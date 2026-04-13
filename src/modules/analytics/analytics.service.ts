@@ -525,7 +525,8 @@ export class AnalyticsService {
                   {
                     $or: [
                       { $eq: ['$deliveryArea.sameDayDelivery', true] },
-                      { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] }
+                      { $in: [{ $ifNull: ['$paymentMethod', ''] }, ['bank-transfer', 'transfer']] },
+                      { $ne: [{ $ifNull: ['$puntoEnvio', ''] }, ''] }
                     ]
                   },
                   'sameDay',
@@ -1355,8 +1356,14 @@ export class AnalyticsService {
     const matchCondition: any = {};
     if (startDate || endDate) {
       matchCondition.referenceDate = {};
-      if (startDate) matchCondition.referenceDate.$gte = new Date(startDate);
-      if (endDate) matchCondition.referenceDate.$lte = new Date(endDate);
+      if (startDate) {
+        const [y, m, d] = startDate.split('-').map(Number);
+        matchCondition.referenceDate.$gte = new Date(y, m - 1, d, 0, 0, 0, 0);
+      }
+      if (endDate) {
+        const [y, m, d] = endDate.split('-').map(Number);
+        matchCondition.referenceDate.$lte = new Date(y, m - 1, d, 23, 59, 59, 999);
+      }
     }
     if (puntoEnvio && puntoEnvio !== 'all') {
       matchCondition.puntoEnvio = puntoEnvio;
@@ -1402,6 +1409,7 @@ export class AnalyticsService {
             orderType: { $ifNull: ['$orderType', 'minorista'] },
             sameDayDelivery: '$deliveryArea.sameDayDelivery',
             puntoEnvio: { $ifNull: ['$deliveryArea.puntoEnvio', '$puntoEnvio'] },
+            paymentMethod: '$paymentMethod',
             productName: '$items.name',
             optionName: '$items.options.name'
           },
@@ -1436,10 +1444,11 @@ export class AnalyticsService {
       const orderType = (item._id.orderType || 'minorista').toLowerCase();
 
       let targetList = stats.minorista;
-      if (item._id.sameDayDelivery || item._id.puntoEnvio) {
-        targetList = stats.sameDay;
-      } else if (orderType === 'mayorista') {
+      // PRIORIZAR MAYORISTA SOBRE SAMEDAY PARA COINCIDIR CON BALANCE
+      if (orderType === 'mayorista') {
         targetList = stats.mayorista;
+      } else if (item._id.sameDayDelivery || item._id.puntoEnvio || item._id.paymentMethod === 'bank-transfer' || item._id.paymentMethod === 'transfer') {
+        targetList = stats.sameDay;
       }
 
       const entry = getMonthEntry(targetList, monthKey);
