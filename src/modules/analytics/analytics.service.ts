@@ -7,7 +7,7 @@ import { Product } from '../../schemas/product.schema';
 import { PaymentsGestor } from '../../schemas/payments-gestor.schema';
 import { Salidas } from '../../schemas/salidas.schema';
 import { calculateItemWeight } from '../../common/utils/weightUtils';
-import * as moment from 'moment';
+import * as moment from 'moment-timezone';
 import { canonicalizeProductName } from './helpers/analytics.helpers';
 
 @Injectable()
@@ -50,7 +50,7 @@ export class AnalyticsService {
 
   async getCategorySales(statusFilter: string = 'all', limit: number = 10, startDate?: string, endDate?: string): Promise<any> {
     const pipeline: PipelineStage[] = [];
-    
+
     pipeline.push({
       $addFields: {
         referenceDate: {
@@ -386,7 +386,7 @@ export class AnalyticsService {
 
   async getCustomerInsights(startDate?: string, endDate?: string): Promise<any> {
     const pipeline: PipelineStage[] = [];
-    
+
     pipeline.push({
       $addFields: {
         referenceDate: {
@@ -493,9 +493,9 @@ export class AnalyticsService {
           paymentMethod: 1,
           'deliveryArea.sameDayDelivery': 1,
           monthKey: {
-            $dateToString: { 
-              format: '%Y-%m', 
-              date: { 
+            $dateToString: {
+              format: '%Y-%m',
+              date: {
                 $ifNull: [
                   {
                     $cond: [
@@ -719,7 +719,7 @@ export class AnalyticsService {
 
   async getPaymentMethodStats(startDate?: string, endDate?: string): Promise<any> {
     const pipeline: PipelineStage[] = [];
-    
+
     pipeline.push({
       $addFields: {
         referenceDate: {
@@ -874,22 +874,22 @@ export class AnalyticsService {
     let groupId: any;
     switch (periodType) {
       case 'daily':
-        groupId = { 
-          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-          day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        groupId = {
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+          day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
         };
         break;
       case 'weekly':
-        groupId = { 
-          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-          week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        groupId = {
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+          week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
         };
         break;
       case 'monthly':
-        groupId = { 
-          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+        groupId = {
+          year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+          month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
         };
         break;
     }
@@ -1069,20 +1069,20 @@ export class AnalyticsService {
 
     let groupBy: any;
     if (daysDiff <= 31) {
-      groupBy = { 
-        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-        day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      groupBy = {
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+        day: { $dayOfMonth: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
       };
     } else if (daysDiff <= 90) {
-      groupBy = { 
-        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-        week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      groupBy = {
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+        week: { $week: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
       };
     } else {
-      groupBy = { 
-        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }, 
-        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } } 
+      groupBy = {
+        year: { $year: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } },
+        month: { $month: { date: '$referenceDate', timezone: 'America/Argentina/Buenos_Aires' } }
       };
     }
 
@@ -1353,16 +1353,20 @@ export class AnalyticsService {
   }
 
   async getQuantityStatsByMonth(startDate?: string, endDate?: string, puntoEnvio?: string): Promise<any> {
-    const matchCondition: any = {};
+    const argentinaTz = 'America/Argentina/Buenos_Aires';
+    const matchCondition: any = {
+      status: { $in: ['confirmed', 'delivered', 'pending'] },
+    };
+
     if (startDate || endDate) {
       matchCondition.referenceDate = {};
       if (startDate) {
-        const [y, m, d] = startDate.split('-').map(Number);
-        matchCondition.referenceDate.$gte = new Date(y, m - 1, d, 0, 0, 0, 0);
+        // Normalizamos a la zona horaria de Argentina para evitar que pedidos de las
+        // últimas horas del año anterior (por desfase UTC) aparezcan en el reporte actual.
+        matchCondition.referenceDate.$gte = moment.tz(startDate.split('T')[0], argentinaTz).startOf('day').toDate();
       }
       if (endDate) {
-        const [y, m, d] = endDate.split('-').map(Number);
-        matchCondition.referenceDate.$lte = new Date(y, m - 1, d, 23, 59, 59, 999);
+        matchCondition.referenceDate.$lte = moment.tz(endDate.split('T')[0], argentinaTz).endOf('day').toDate();
       }
     }
     if (puntoEnvio && puntoEnvio !== 'all') {
@@ -1370,7 +1374,7 @@ export class AnalyticsService {
     }
 
     const pipeline: PipelineStage[] = [];
-    
+
     pipeline.push({
       $addFields: {
         referenceDate: {
