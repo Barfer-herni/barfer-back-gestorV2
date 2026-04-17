@@ -143,16 +143,15 @@ export class RepartosService {
                 return false;
             }
 
-            const currentEntry = dayData[rowIndex];
-
-            const updatedEntry = {
-                ...currentEntry,
-                ...entry,
-                id: currentEntry.id, // Preservar el id original
-            };
-
             const updateQuery = {};
-            updateQuery[`data.${dayKey}.${rowIndex}`] = updatedEntry;
+            
+            // Actualización parcial estricta usando notación de puntos
+            if (entry.text !== undefined) {
+                updateQuery[`data.${dayKey}.${rowIndex}.text`] = entry.text;
+            }
+            if (entry.isCompleted !== undefined) {
+                updateQuery[`data.${dayKey}.${rowIndex}.isCompleted`] = entry.isCompleted;
+            }
             updateQuery['updatedAt'] = new Date();
 
             const result = await this.repartoModel.updateOne(
