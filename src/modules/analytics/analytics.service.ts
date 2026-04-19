@@ -1426,9 +1426,17 @@ export class AnalyticsService {
     const results = await this.orderModel.aggregate(pipeline);
 
     const stats: any = { minorista: [], sameDay: [], mayorista: [] };
+    // Determine if we need to group sameDay entries by puntoEnvio
+    const groupByPuntoEnvio = !puntoEnvio || puntoEnvio === 'all';
 
-    const getMonthEntry = (array: any[], monthKey: string) => {
-      let entry = array.find(m => m.month === monthKey);
+    const getMonthEntry = (array: any[], monthKey: string, puntoEnvioName?: string) => {
+      let entry: any;
+      if (puntoEnvioName) {
+        // When grouping by puntoEnvio, find entry matching both month AND puntoEnvio
+        entry = array.find(m => m.month === monthKey && m.puntoEnvio === puntoEnvioName);
+      } else {
+        entry = array.find(m => m.month === monthKey && !m.puntoEnvio);
+      }
       if (!entry) {
         entry = {
           month: monthKey, pollo: 0, vaca: 0, cerdo: 0, cordero: 0,
@@ -1436,6 +1444,9 @@ export class AnalyticsService {
           gatoPollo: 0, gatoVaca: 0, gatoCordero: 0, totalGato: 0,
           huesosCarnosos: 0, totalMes: 0
         };
+        if (puntoEnvioName) {
+          entry.puntoEnvio = puntoEnvioName;
+        }
         array.push(entry);
       }
       return entry;
@@ -1448,39 +1459,47 @@ export class AnalyticsService {
       const orderType = (item._id.orderType || 'minorista').toLowerCase();
 
       let targetList = stats.minorista;
+      let isSameDay = false;
       // PRIORIZAR MAYORISTA SOBRE SAMEDAY PARA COINCIDIR CON BALANCE
       if (orderType === 'mayorista') {
         targetList = stats.mayorista;
-      } else if (item._id.sameDayDelivery || item._id.puntoEnvio || item._id.paymentMethod === 'bank-transfer' || item._id.paymentMethod === 'transfer') {
+      } else if (item._id.sameDayDelivery || (item._id.puntoEnvio && item._id.puntoEnvio !== '') || item._id.paymentMethod === 'bank-transfer' || item._id.paymentMethod === 'transfer') {
         targetList = stats.sameDay;
+        isSameDay = true;
       }
 
-      const entry = getMonthEntry(targetList, monthKey);
+      // For sameDay entries when grouping by puntoEnvio, preserve the puntoEnvio name
+      const puntoEnvioForEntry = (isSameDay && groupByPuntoEnvio) ? (item._id.puntoEnvio || '') : undefined;
+      const entry = getMonthEntry(targetList, monthKey, puntoEnvioForEntry);
 
       // USAMOS LA UTILITY ORIGINAL PARA PRECISIÓN DEL 100%
       const weight = calculateItemWeight(item._id.productName, item._id.optionName);
       const totalWeight = weight * item.totalQuantity;
 
-      const productName = item._id.productName.toUpperCase();
-      const optionName = (item._id.optionName || '').toUpperCase();
+      if (totalWeight > 0) {
+        const productName = item._id.productName.toUpperCase();
+        const optionName = (item._id.optionName || '').toUpperCase();
+        const fullName = `${productName} ${optionName}`;
 
-      if (productName.includes('BIG DOG')) {
-        if (optionName.includes('POLLO')) entry.bigDogPollo += totalWeight;
-        else if (optionName.includes('VACA')) entry.bigDogVaca += totalWeight;
-        entry.totalPerro += totalWeight;
-      } else if (productName.includes('HUESOS') || productName.includes('CARNOSOS')) {
-        entry.huesosCarnosos += totalWeight;
-      } else if (productName.includes('PERRO')) {
-        if (productName.includes('POLLO')) entry.pollo += totalWeight;
-        else if (productName.includes('VACA')) entry.vaca += totalWeight;
-        else if (productName.includes('CERDO')) entry.cerdo += totalWeight;
-        else if (productName.includes('CORDERO')) entry.cordero += totalWeight;
-        entry.totalPerro += totalWeight;
-      } else if (productName.includes('GATO')) {
-        if (productName.includes('POLLO')) entry.gatoPollo += totalWeight;
-        else if (productName.includes('VACA')) entry.gatoVaca += totalWeight;
-        else if (productName.includes('CORDERO')) entry.gatoCordero += totalWeight;
-        entry.totalGato += totalWeight;
+        if (productName.includes('BIG DOG')) {
+          if (fullName.includes('POLLO')) entry.bigDogPollo += totalWeight;
+          else if (fullName.includes('VACA')) entry.bigDogVaca += totalWeight;
+          entry.totalPerro += totalWeight;
+        } else if (productName.includes('HUESOS') || productName.includes('CARNOSOS')) {
+          entry.huesosCarnosos += totalWeight;
+        } else if (productName.includes('GATO')) {
+          if (fullName.includes('POLLO')) entry.gatoPollo += totalWeight;
+          else if (fullName.includes('VACA')) entry.gatoVaca += totalWeight;
+          else if (fullName.includes('CORDERO')) entry.gatoCordero += totalWeight;
+          entry.totalGato += totalWeight;
+        } else {
+          // Default: PERRO / Otros sabores detectados en el nombre completo
+          if (fullName.includes('POLLO')) entry.pollo += totalWeight;
+          else if (fullName.includes('VACA')) entry.vaca += totalWeight;
+          else if (fullName.includes('CERDO')) entry.cerdo += totalWeight;
+          else if (fullName.includes('CORDERO')) entry.cordero += totalWeight;
+          entry.totalPerro += totalWeight;
+        }
       }
 
       entry.totalMes += totalWeight;
@@ -1488,7 +1507,7 @@ export class AnalyticsService {
 
     const formatEntry = (entry: any) => {
       Object.keys(entry).forEach(key => {
-        if (key !== 'month') entry[key] = Math.round(entry[key] * 10) / 10;
+        if (key !== 'month' && key !== 'puntoEnvio') entry[key] = Math.round(entry[key] * 10) / 10;
       });
     };
 
