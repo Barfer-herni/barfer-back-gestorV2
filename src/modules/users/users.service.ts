@@ -69,8 +69,10 @@ export class UsersService {
     const now = new Date();
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(now.getDate() - 90);
-    const oneTwentyDaysAgo = new Date();
-    oneTwentyDaysAgo.setDate(now.getDate() - 120);
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(now.getDate() - 60);
+    const fortyFiveDaysAgo = new Date();
+    fortyFiveDaysAgo.setDate(now.getDate() - 45);
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(now.getDate() - 7);
     const thirtyDaysAgo = new Date();
@@ -141,7 +143,7 @@ export class UsersService {
                       1000 * 60 * 60 * 24,
                     ],
                   },
-                  120,
+                  60,
                 ],
               },
               false,
@@ -168,18 +170,36 @@ export class UsersService {
                     $and: [
                       { $eq: ['$orderCount', 1] },
                       { $lt: ['$lastOrderDate', sevenDaysAgo] },
-                      { $gte: ['$lastOrderDate', thirtyDaysAgo] },
+                      { $gte: ['$lastOrderDate', sixtyDaysAgo] },
                     ],
                   },
                   then: 'tracking',
                 },
-                { case: { $eq: ['$isRecovered', true] }, then: 'recovered' },
-                { case: { $gte: ['$lastOrderDate', ninetyDaysAgo] }, then: 'active' },
                 {
                   case: {
                     $and: [
-                      { $lt: ['$lastOrderDate', ninetyDaysAgo] },
-                      { $gte: ['$lastOrderDate', oneTwentyDaysAgo] },
+                      { $eq: ['$orderCount', 1] },
+                      { $lt: ['$lastOrderDate', sixtyDaysAgo] },
+                    ],
+                  },
+                  then: 'no-recompra',
+                },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ['$orderCount', 2] },
+                      { $gte: ['$lastOrderDate', sevenDaysAgo] },
+                    ],
+                  },
+                  then: 'recompra',
+                },
+                { case: { $eq: ['$isRecovered', true] }, then: 'recovered' },
+                { case: { $gte: ['$lastOrderDate', fortyFiveDaysAgo] }, then: 'active' },
+                {
+                  case: {
+                    $and: [
+                      { $lt: ['$lastOrderDate', fortyFiveDaysAgo] },
+                      { $gte: ['$lastOrderDate', sixtyDaysAgo] },
                     ],
                   },
                   then: 'possible-inactive',
@@ -389,8 +409,10 @@ export class UsersService {
     const now = new Date();
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(now.getDate() - 90);
-    const oneTwentyDaysAgo = new Date();
-    oneTwentyDaysAgo.setDate(now.getDate() - 120);
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(now.getDate() - 60);
+    const fortyFiveDaysAgo = new Date();
+    fortyFiveDaysAgo.setDate(now.getDate() - 45);
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(now.getDate() - 7);
     const thirtyDaysAgo = new Date();
@@ -462,7 +484,7 @@ export class UsersService {
                       1000 * 60 * 60 * 24
                     ]
                   },
-                  120
+                  60
                 ]
               },
               false
@@ -493,24 +515,42 @@ export class UsersService {
                     $and: [
                       { $eq: ['$orderCount', 1] },
                       { $lt: ['$lastOrderDate', sevenDaysAgo] },
-                      { $gte: ['$lastOrderDate', thirtyDaysAgo] }
+                      { $gte: ['$lastOrderDate', sixtyDaysAgo] }
                     ]
                   },
                   then: 'tracking'
+                },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ['$orderCount', 1] },
+                      { $lt: ['$lastOrderDate', sixtyDaysAgo] }
+                    ]
+                  },
+                  then: 'no-recompra'
+                },
+                {
+                  case: {
+                    $and: [
+                      { $eq: ['$orderCount', 2] },
+                      { $gte: ['$lastOrderDate', sevenDaysAgo] }
+                    ]
+                  },
+                  then: 'recompra'
                 },
                 {
                   case: { $eq: ['$isRecovered', true] },
                   then: 'recovered'
                 },
                 {
-                  case: { $gte: ['$lastOrderDate', ninetyDaysAgo] },
+                  case: { $gte: ['$lastOrderDate', fortyFiveDaysAgo] },
                   then: 'active'
                 },
                 {
                   case: {
                     $and: [
-                      { $lt: ['$lastOrderDate', ninetyDaysAgo] },
-                      { $gte: ['$lastOrderDate', oneTwentyDaysAgo] }
+                      { $lt: ['$lastOrderDate', fortyFiveDaysAgo] },
+                      { $gte: ['$lastOrderDate', sixtyDaysAgo] }
                     ]
                   },
                   then: 'possible-inactive'
@@ -735,6 +775,8 @@ export class UsersService {
       { category: 'recovered', count: 0, totalSpent: 0 },
       { category: 'new', count: 0, totalSpent: 0 },
       { category: 'tracking', count: 0, totalSpent: 0 },
+      { category: 'recompra', count: 0, totalSpent: 0 },
+      { category: 'no-recompra', count: 0, totalSpent: 0 },
       { category: 'possible-inactive', count: 0, totalSpent: 0 },
       { category: 'lost', count: 0, totalSpent: 0 },
     ];
