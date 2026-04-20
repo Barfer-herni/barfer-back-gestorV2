@@ -83,6 +83,14 @@ export class UsersService {
       { $match: { role: { $ne: 1 } } },
       {
         $lookup: {
+          from: 'addresses',
+          localField: 'email',
+          foreignField: 'email',
+          as: 'userAddresses',
+        },
+      },
+      {
+        $lookup: {
           from: 'orders',
           localField: 'email',
           foreignField: 'user.email',
@@ -95,6 +103,9 @@ export class UsersService {
           name: 1,
           lastName: 1,
           phoneNumber: 1,
+          phone: 1, // Fallback if the field in users is just 'phone'
+          addressPhones: '$userAddresses.phone',
+          orderPhones: '$userOrders.address.phone',
           orderCount: { $size: '$userOrders' },
           totalSpent: { $sum: '$userOrders.total' },
           lastOrderDate: { $max: '$userOrders.createdAt' },
@@ -363,17 +374,30 @@ export class UsersService {
     });
 
     // Combinar datos y aplicar filtros
-    let clients = behaviorAggregation.map((u) => ({
-      id: u._id?.toString(),
-      email: u.email,
-      name: `${u.name || ''}${u.lastName ? ' ' + u.lastName : ''}`.trim(),
-      phone: u.phoneNumber || null,
-      orderCount: u.orderCount,
-      lastOrder: u.lastOrderDate ?? null,
-      totalSpent: u.totalSpent || 0,
-      behaviorCategory: u.behaviorCategory,
-      spendingCategory: spendingMap.get(u.email) || 'basic',
-    }));
+    let clients = behaviorAggregation.map((u) => {
+      // Intentar obtener el teléfono de varias fuentes:
+      // 1. phoneNumber del usuario
+      // 2. phone del usuario (por si acaso)
+      // 3. Última dirección registrada
+      // 4. Último pedido realizado
+      const phoneFallback = (u.addressPhones && u.addressPhones.length > 0) 
+        ? u.addressPhones[u.addressPhones.length - 1] 
+        : (u.orderPhones && u.orderPhones.length > 0) 
+          ? u.orderPhones[u.orderPhones.length - 1] 
+          : null;
+
+      return {
+        id: u._id?.toString(),
+        email: u.email,
+        name: `${u.name || ''}${u.lastName ? ' ' + u.lastName : ''}`.trim(),
+        phone: u.phoneNumber || u.phone || phoneFallback,
+        orderCount: u.orderCount,
+        lastOrder: u.lastOrderDate ?? null,
+        totalSpent: u.totalSpent || 0,
+        behaviorCategory: u.behaviorCategory,
+        spendingCategory: spendingMap.get(u.email) || 'basic',
+      };
+    });
 
     // Filtrar por categoría y tipo si se especifican
     if (category && type) {
