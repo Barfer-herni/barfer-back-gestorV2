@@ -60,6 +60,7 @@ export class UsersController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    console.log('[UsersController] getClientsForWhatsapp query:', { category, type, page, limit });
     return this.userService.getClientsForWhatsapp({
       category,
       type,

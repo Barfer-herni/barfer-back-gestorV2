@@ -78,22 +78,72 @@ export class UsersService {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
-    // Obtener categorías de comportamiento por usuario
-    const behaviorAggregation = await this.userModel.aggregate([
-      { $match: { role: { $ne: 1 } } },
+    // Pre-filtrado de emails si se especifica categoría y tipo
+    let preMatchedEmails: string[] | null = null;
+
+    if (type === 'behavior' && category) {
+      const behaviorMatch: any = {};
+
+      if (category === 'new') {
+        behaviorMatch.count = 1;
+        behaviorMatch.lastDate = { $gte: sevenDaysAgo };
+      } else if (category === 'tracking') {
+        behaviorMatch.count = 1;
+        behaviorMatch.lastDate = { $lt: sevenDaysAgo, $gte: sixtyDaysAgo };
+      } else if (category === 'no-recompra') {
+        behaviorMatch.count = 1;
+        behaviorMatch.lastDate = { $lt: sixtyDaysAgo };
+      } else if (category === 'recompra') {
+        behaviorMatch.count = 2;
+        behaviorMatch.lastDate = { $gte: sevenDaysAgo };
+      } else if (category === 'active') {
+        behaviorMatch.count = { $gte: 2 };
+        behaviorMatch.lastDate = { $gte: fortyFiveDaysAgo };
+      } else if (category === 'possible-inactive') {
+        behaviorMatch.lastDate = { $lt: fortyFiveDaysAgo, $gte: sixtyDaysAgo };
+      } else if (category === 'lost') {
+        behaviorMatch.lastDate = { $lt: sixtyDaysAgo };
+      }
+
+      if (Object.keys(behaviorMatch).length > 0) {
+        const emailAgg = await this.orderModel.aggregate([
+          { $group: { _id: '$user.email', count: { $sum: 1 }, lastDate: { $max: '$createdAt' } } },
+          { $match: behaviorMatch }
+        ]);
+        preMatchedEmails = emailAgg.map(e => e._id).filter(e => !!e);
+      }
+    }
+
+    // 1. Obtener categorías de comportamiento
+    const behaviorPipeline: any[] = [];
+
+    // Si ya pre-filtramos emails, el primer paso es limitar por esos emails
+    if (preMatchedEmails) {
+      behaviorPipeline.push({ $match: { email: { $in: preMatchedEmails } } });
+    } else {
+      behaviorPipeline.push({ $match: { role: { $ne: 1 } } });
+    }
+
+    behaviorPipeline.push(
       {
         $lookup: {
           from: 'addresses',
-          localField: 'email',
-          foreignField: 'email',
+          let: { userEmail: '$email' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$email', '$$userEmail'] } } },
+            { $project: { phone: 1 } }
+          ],
           as: 'userAddresses',
         },
       },
       {
         $lookup: {
           from: 'orders',
-          localField: 'email',
-          foreignField: 'user.email',
+          let: { userEmail: '$email' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$user.email', '$$userEmail'] } } },
+            { $project: { total: 1, createdAt: 1 } }
+          ],
           as: 'userOrders',
         },
       },
@@ -103,7 +153,7 @@ export class UsersService {
           name: 1,
           lastName: 1,
           phoneNumber: 1,
-          phone: 1, // Fallback if the field in users is just 'phone'
+          phone: 1,
           addressPhones: '$userAddresses.phone',
           orderPhones: '$userOrders.address.phone',
           orderCount: { $size: '$userOrders' },
@@ -220,12 +270,32 @@ export class UsersService {
             },
           },
         },
-      },
-    ]);
+      }
+    );
 
-    // Obtener categorías de gasto por usuario (last 30 days)
-    const spendingAggregation = await this.orderModel.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+    // Si filtramos por comportamiento y NO pudimos pre-filtrar antes (ej: recovered)
+    if (type === 'behavior' && category && !preMatchedEmails) {
+      behaviorPipeline.push({ $match: { behaviorCategory: category } });
+    }
+
+    const behaviorAggregation = await this.userModel.aggregate(behaviorPipeline);
+    const matchedEmails = behaviorAggregation.map(u => u.email);
+
+    // 2. Obtener categorías de gasto
+    // Solo procesamos spending para los usuarios que pasaron el filtro de comportamiento
+    const spendingPipeline: any[] = [
+      {
+        $match: {
+          createdAt: { $gte: thirtyDaysAgo },
+          ...(matchedEmails.length > 0 ? { 'user.email': { $in: matchedEmails } } : {})
+        }
+      },
+    ];
+
+    // Si el filtro es por spending, y hay muchos usuarios, podríamos pre-filtrar también aquí
+    // Pero como ya filtramos por behavior emails arriba, ya está optimizado para ese caso.
+
+    spendingPipeline.push(
       {
         $project: {
           userEmail: { $ifNull: ['$user.email', '$address.email'] },
@@ -364,26 +434,33 @@ export class UsersService {
             },
           },
         },
-      },
-    ]);
+      }
+    );
 
-    // Construir mapa email -> spendingCategory
+    // Si el filtro era por gasto, aplicarlo aquí
+    if (type === 'spending' && category) {
+      spendingPipeline.push({ $match: { spendingCategory: category } });
+    }
+
+    const spendingAggregation = await this.orderModel.aggregate(spendingPipeline);
     const spendingMap = new Map<string, string>();
+
     spendingAggregation.forEach((s) => {
       if (s._id) spendingMap.set(s._id, s.spendingCategory);
     });
 
-    // Combinar datos y aplicar filtros
-    let clients = behaviorAggregation.map((u) => {
-      // Intentar obtener el teléfono de varias fuentes:
-      // 1. phoneNumber del usuario
-      // 2. phone del usuario (por si acaso)
-      // 3. Última dirección registrada
-      // 4. Último pedido realizado
-      const phoneFallback = (u.addressPhones && u.addressPhones.length > 0) 
-        ? u.addressPhones[u.addressPhones.length - 1] 
-        : (u.orderPhones && u.orderPhones.length > 0) 
-          ? u.orderPhones[u.orderPhones.length - 1] 
+    // 3. Si el filtro era por spending, tenemos que re-filtrar behavior por esos emails
+    let behaviorResults = behaviorAggregation;
+    if (type === 'spending' && category) {
+      behaviorResults = behaviorAggregation.filter(u => spendingMap.has(u.email));
+    }
+
+    // Combinar datos
+    let clients = behaviorResults.map((u) => {
+      const phoneFallback = (u.addressPhones && u.addressPhones.length > 0)
+        ? u.addressPhones[u.addressPhones.length - 1]
+        : (u.orderPhones && u.orderPhones.length > 0)
+          ? u.orderPhones[u.orderPhones.length - 1]
           : null;
 
       return {
@@ -399,15 +476,8 @@ export class UsersService {
       };
     });
 
-    // Filtrar por categoría y tipo si se especifican
-    if (category && type) {
-      clients = clients.filter((c) => {
-        if (type === 'behavior') return c.behaviorCategory === category;
-        if (type === 'spending') return c.spendingCategory === category;
-        return true;
-      });
-    } else if (category) {
-      // Sin tipo especificado, buscar en ambos
+    // Si no se especificó tipo pero sí categoría, filtramos al final
+    if (!type && category) {
       clients = clients.filter(
         (c) => c.behaviorCategory === category || c.spendingCategory === category,
       );
