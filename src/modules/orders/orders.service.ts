@@ -522,7 +522,7 @@ export class OrdersService {
         if (from && from.trim() !== '') {
           const [year, month, day] = from.split('-').map(Number);
           // 00:00:00.000 local
-          const fromDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
+          const fromDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
           dateFilter.push({
             $or: [
               { deliveryDay: { $gte: fromDateObj } },
@@ -545,7 +545,7 @@ export class OrdersService {
         if (to && to.trim() !== '') {
           const [year, month, day] = to.split('-').map(Number);
           // 23:59:59.999 local
-          const toDateObj = new Date(year, month - 1, day, 23, 59, 59, 999);
+          const toDateObj = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
           dateFilter.push({
             $or: [
               { deliveryDay: { $lte: toDateObj } },
@@ -1029,11 +1029,11 @@ export class OrdersService {
 
         if (fromVal) {
           const [year, month, day] = fromVal.split('-').map(Number);
-          fromDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
+          fromDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
         }
         if (toVal) {
           const [year, month, day] = toVal.split('-').map(Number);
-          toDateObj = new Date(year, month - 1, day, 23, 59, 59, 999);
+          toDateObj = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
         }
 
         filter.$and = [
@@ -1162,11 +1162,11 @@ export class OrdersService {
         const dateFilter: any = {};
         if (from) {
           const [y, m, d] = from.split('-').map(Number);
-          dateFilter.$gte = new Date(y, m - 1, d, 0, 0, 0, 0);
+          dateFilter.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
         }
         if (to) {
           const [y, m, d] = to.split('-').map(Number);
-          dateFilter.$lte = new Date(y, m - 1, d, 23, 59, 59, 999);
+          dateFilter.$lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
         }
         matchAnd.push({ referenceDate: dateFilter });
       }
@@ -1404,11 +1404,9 @@ export class OrdersService {
   async countOrdersByDay(puntoEnvio: string, date: string | Date): Promise<number> {
     try {
       const targetDate = typeof date === 'string' ? new Date(date) : date;
-      const startOfDay = new Date(targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      const startOfDay = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0));
 
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      const endOfDay = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999));
 
       const count = await this.orderModel.countDocuments({
         puntoEnvio,

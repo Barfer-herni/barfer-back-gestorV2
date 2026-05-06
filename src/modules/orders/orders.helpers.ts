@@ -78,8 +78,8 @@ export function normalizeDeliveryDay(dateInput: any): Date {
 
     if (isNaN(date.getTime())) throw new BadRequestException('Invalid date');
 
-    // Retornar fecha a las 00:00:00 hora local
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    // Retornar fecha a las 00:00:00 UTC
+    return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
 }
 
 export function validateAndNormalizePhone(phone: string): string | null {
