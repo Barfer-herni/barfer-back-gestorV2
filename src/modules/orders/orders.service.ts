@@ -970,54 +970,31 @@ export class OrdersService {
   }
 
 
-
   async getExpressOrders(
     puntoEnvio?: string,
     from?: string,
     to?: string,
     page: number = 1,
-    limit: number = 50
+    limit: number = 2000
   ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
     try {
       const filter: any = {
         $and: [
-          {
-            $or: [
-              { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
-              { 'deliveryArea.sameDayDelivery': true },
-              { puntoEnvio: { $exists: true, $nin: [null, ''] } }
-            ]
-          },
           { orderType: { $ne: 'mayorista' } }
         ]
       };
 
-      if (puntoEnvio) filter.puntoEnvio = puntoEnvio;
-
-      // Si no se pasa rango de fechas, filtrar por defecto los últimos 7 días
-      if (!from && !to) {
-        const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 7);
-        filter.$and = [
-          {
-            $or: [
-              { deliveryDay: { $gte: sevenDaysAgo } },
-              {
-                $and: [
-                  { deliveryDay: { $exists: false } },
-                  { createdAt: { $gte: sevenDaysAgo } },
-                ],
-              },
-              {
-                $and: [
-                  { deliveryDay: null },
-                  { createdAt: { $gte: sevenDaysAgo } },
-                ],
-              },
-            ],
-          },
-        ];
+      if (puntoEnvio) {
+        filter.puntoEnvio = puntoEnvio;
+        limit = 10000;
+      } else {
+        filter.$and.push({
+          $or: [
+            { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
+            { 'deliveryArea.sameDayDelivery': true },
+            { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+          ]
+        });
       }
 
       if ((from && from.trim() !== '') || (to && to.trim() !== '')) {
@@ -1036,45 +1013,41 @@ export class OrdersService {
           toDateObj = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
         }
 
-        filter.$and = [
-          {
-            $or: [
-              {
-                deliveryDay: {
-                  ...(fromDateObj && { $gte: fromDateObj }),
-                  ...(toDateObj && { $lte: toDateObj })
-                }
-              },
-              {
-                $and: [
-                  { deliveryDay: { $exists: false } },
-                  {
-                    createdAt: {
-                      ...(fromDateObj && { $gte: fromDateObj }),
-                      ...(toDateObj && { $lte: toDateObj })
-                    }
-                  }
-                ]
-              },
-              {
-                $and: [
-                  { deliveryDay: null },
-                  {
-                    createdAt: {
-                      ...(fromDateObj && { $gte: fromDateObj }),
-                      ...(toDateObj && { $lte: toDateObj })
-                    }
-                  }
-                ]
+        filter.$and.push({
+          $or: [
+            {
+              deliveryDay: {
+                ...(fromDateObj && { $gte: fromDateObj }),
+                ...(toDateObj && { $lte: toDateObj })
               }
-            ]
-          }
-        ];
+            },
+            {
+              $and: [
+                { deliveryDay: { $exists: false } },
+                {
+                  createdAt: {
+                    ...(fromDateObj && { $gte: fromDateObj }),
+                    ...(toDateObj && { $lte: toDateObj })
+                  }
+                }
+              ]
+            },
+            {
+              $and: [
+                { deliveryDay: null },
+                {
+                  createdAt: {
+                    ...(fromDateObj && { $gte: fromDateObj }),
+                    ...(toDateObj && { $lte: toDateObj })
+                  }
+                }
+              ]
+            }
+          ]
+        });
       }
-
       const skip = (page - 1) * limit;
 
-      // Proyectar solo los campos necesarios para la tabla (evita traer documentos completos pesados)
       const tableProjection = {
         _id: 1,
         status: 1,
@@ -1134,6 +1107,177 @@ export class OrdersService {
       return { orders: [], total: 0, page, totalPages: 0 };
     }
   }
+
+  // async getExpressOrders(
+  //   puntoEnvio?: string,
+  //   from?: string,
+  //   to?: string,
+  //   page: number = 1,
+  //   limit: number = 50
+  // ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
+  //   try {
+
+  //     console.log('puntoEnvio', puntoEnvio);
+  //     console.log('from', from);
+  //     console.log('to', to);
+  //     console.log('page', page);
+  //     console.log('limit', limit);
+
+  //     const filter: any = {
+  //       $and: [
+  //         {
+  //           $or: [
+  //             { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
+  //             { 'deliveryArea.sameDayDelivery': true },
+  //             { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+  //           ]
+  //         },
+  //         { orderType: { $ne: 'mayorista' } }
+  //       ]
+  //     };
+
+  //     if (puntoEnvio) filter.puntoEnvio = puntoEnvio;
+
+  //     // Si no se pasa rango de fechas, filtrar por defecto los últimos 7 días
+  //     if (!from && !to) {
+  //       const today = new Date();
+  //       const sevenDaysAgo = new Date(today);
+  //       sevenDaysAgo.setDate(today.getDate() - 7);
+  //       filter.$and = [
+  //         {
+  //           $or: [
+  //             { deliveryDay: { $gte: sevenDaysAgo } },
+  //             {
+  //               $and: [
+  //                 { deliveryDay: { $exists: false } },
+  //                 { createdAt: { $gte: sevenDaysAgo } },
+  //               ],
+  //             },
+  //             {
+  //               $and: [
+  //                 { deliveryDay: null },
+  //                 { createdAt: { $gte: sevenDaysAgo } },
+  //               ],
+  //             },
+  //           ],
+  //         },
+  //       ];
+  //     }
+
+  //     if ((from && from.trim() !== '') || (to && to.trim() !== '')) {
+  //       const fromVal = from?.trim() || '';
+  //       const toVal = to?.trim() || fromVal;
+
+  //       let fromDateObj: Date | undefined;
+  //       let toDateObj: Date | undefined;
+
+  //       if (fromVal) {
+  //         const [year, month, day] = fromVal.split('-').map(Number);
+  //         fromDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  //       }
+  //       if (toVal) {
+  //         const [year, month, day] = toVal.split('-').map(Number);
+  //         toDateObj = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  //       }
+
+  //       filter.$and = [
+  //         {
+  //           $or: [
+  //             {
+  //               deliveryDay: {
+  //                 ...(fromDateObj && { $gte: fromDateObj }),
+  //                 ...(toDateObj && { $lte: toDateObj })
+  //               }
+  //             },
+  //             {
+  //               $and: [
+  //                 { deliveryDay: { $exists: false } },
+  //                 {
+  //                   createdAt: {
+  //                     ...(fromDateObj && { $gte: fromDateObj }),
+  //                     ...(toDateObj && { $lte: toDateObj })
+  //                   }
+  //                 }
+  //               ]
+  //             },
+  //             {
+  //               $and: [
+  //                 { deliveryDay: null },
+  //                 {
+  //                   createdAt: {
+  //                     ...(fromDateObj && { $gte: fromDateObj }),
+  //                     ...(toDateObj && { $lte: toDateObj })
+  //                   }
+  //                 }
+  //               ]
+  //             }
+  //           ]
+  //         }
+  //       ];
+  //     }
+
+  //     const skip = (page - 1) * limit;
+
+  //     // Proyectar solo los campos necesarios para la tabla (evita traer documentos completos pesados)
+  //     const tableProjection = {
+  //       _id: 1,
+  //       status: 1,
+  //       estadoEnvio: 1,
+  //       puntoEnvio: 1,
+  //       deliveryDay: 1,
+  //       createdAt: 1,
+  //       updatedAt: 1,
+  //       total: 1,
+  //       subTotal: 1,
+  //       shippingPrice: 1,
+  //       paymentMethodDiscount: 1,
+  //       couponDiscount: 1,
+  //       paymentMethod: 1,
+  //       notes: 1,
+  //       notesOwn: 1,
+  //       orderType: 1,
+  //       'user.name': 1,
+  //       'user.lastName': 1,
+  //       'user.email': 1,
+  //       'user.phone': 1,
+  //       'user.phoneNumber': 1,
+  //       'address.address': 1,
+  //       'address.city': 1,
+  //       'address.phone': 1,
+  //       'address.betweenStreets': 1,
+  //       'address.floorNumber': 1,
+  //       'address.departmentNumber': 1,
+  //       'address.reference': 1,
+  //       'address.zipCode': 1,
+  //       'items.name': 1,
+  //       'items.fullName': 1,
+  //       'items.options': 1,
+  //       'deliveryArea.sameDayDelivery': 1,
+  //       'deliveryArea.schedule': 1,
+  //     };
+
+  //     const [orders, total] = await Promise.all([
+  //       this.orderModel
+  //         .find(filter)
+  //         .select(tableProjection)
+  //         .sort({ createdAt: -1 })
+  //         .skip(skip)
+  //         .limit(limit)
+  //         .exec(),
+  //       this.orderModel.countDocuments(filter)
+  //     ]);
+
+  //     return {
+  //       orders,
+  //       total,
+  //       page,
+  //       totalPages: Math.ceil(total / limit)
+  //     };
+  //   } catch (error) {
+  //     console.error('Error al obtener órdenes express:', error);
+  //     return { orders: [], total: 0, page, totalPages: 0 };
+  //   }
+  // }
 
   async getExpressOrdersMetrics(
     puntoEnvio?: string,
