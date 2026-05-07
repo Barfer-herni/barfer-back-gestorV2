@@ -50,9 +50,30 @@ export class SurveysService {
     return response.save();
   }
 
-  async findResponsesBySurvey(surveyId: string): Promise<any[]> {
+  async findResponsesBySurvey(surveyId: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
+    const query: any = { surveyId: new Types.ObjectId(surveyId) };
+
+    // Filtrar por rango de fechas considerando zona horaria de Argentina (UTC-3)
+    // Cuando el usuario selecciona "7 de mayo" en Argentina, espera ver respuestas desde
+    // las 00:00:00 ART (03:00:00 UTC) hasta las 23:59:59 ART (02:59:59 UTC del día siguiente)
+    if (dateFrom || dateTo) {
+      query.completedAt = {};
+      
+      if (dateFrom) {
+        // Inicio del día en hora Argentina
+        // dateFrom viene como "2026-05-07", lo interpretamos en zona horaria Argentina (UTC-3)
+        const startDate = new Date(dateFrom + 'T00:00:00.000-03:00');
+        query.completedAt.$gte = startDate;
+      }
+      if (dateTo) {
+        // Fin del día en hora Argentina
+        const endDate = new Date(dateTo + 'T23:59:59.999-03:00');
+        query.completedAt.$lte = endDate;
+      }
+    }
+
     const responses = await this.responseModel
-      .find({ surveyId: new Types.ObjectId(surveyId) })
+      .find(query)
       .populate('userId', 'email')
       .lean()
       .exec();

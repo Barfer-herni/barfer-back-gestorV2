@@ -53,8 +53,12 @@ export class SurveysController {
   @Get(':id/responses')
   @Auth(Roles.User)
   @Permissions('surveys:view')
-  findResponses(@Param('id') id: string) {
-    return this.surveysService.findResponsesBySurvey(id);
+  findResponses(
+    @Param('id') id: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.surveysService.findResponsesBySurvey(id, dateFrom, dateTo);
   }
 
   @Get('responses/filter')
