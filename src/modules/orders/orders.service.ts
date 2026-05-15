@@ -586,7 +586,7 @@ export class OrdersService {
 
       const searchFilter: any = {};
       if (search) {
-        const searchWords = search.split(' ').filter(Boolean).map(s => this.escapeRegex(s));
+        const searchWords = search.split(' ').filter(word => word && word !== '-').map(s => this.escapeRegex(s));
         if (searchWords.length > 0) {
           searchFilter.$and = searchWords.map((word) => {
             // Mapeo de estados en español a inglés
@@ -639,6 +639,8 @@ export class OrdersService {
                 { 'user.email': { $regex: word, $options: 'i' } },
                 { 'user.phoneNumber': { $regex: word, $options: 'i' } },
                 { 'items.name': { $regex: word, $options: 'i' } },
+                { 'items.fullName': { $regex: word, $options: 'i' } },
+                { 'items.options.name': { $regex: word, $options: 'i' } },
                 { 'address.address': { $regex: word, $options: 'i' } },
                 { 'address.city': { $regex: word, $options: 'i' } },
                 { 'address.phone': { $regex: word, $options: 'i' } },
