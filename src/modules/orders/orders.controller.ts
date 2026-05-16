@@ -129,8 +129,20 @@ export class OrdersController {
     @Query('to') to?: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 50,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+    @Query('estadosEnvio') estadosEnvio?: string,
   ) {
-    return this.ordersService.getExpressOrders(puntoEnvio, from, to, page, limit);
+    return this.ordersService.getExpressOrders(
+      puntoEnvio,
+      from,
+      to,
+      page,
+      limit,
+      search,
+      sort,
+      estadosEnvio,
+    );
   }
 
   @Get('express/metrics')

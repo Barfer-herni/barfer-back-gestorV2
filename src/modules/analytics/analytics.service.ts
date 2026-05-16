@@ -1354,53 +1354,88 @@ export class AnalyticsService {
 
   async getQuantityStatsByMonth(startDate?: string, endDate?: string, puntoEnvio?: string): Promise<any> {
     const argentinaTz = 'America/Argentina/Buenos_Aires';
-    const matchCondition: any = {
-      status: { $in: ['confirmed', 'delivered', 'pending'] },
-    };
+
+    // Filtro inicial usando campos DIRECTOS (status, puntoEnvio, deliveryDay/createdAt)
+    // para que MongoDB pueda aprovechar los índices.
+    const baseAnd: any[] = [
+      { status: { $in: ['confirmed', 'delivered', 'pending'] } },
+    ];
+
+    if (puntoEnvio && puntoEnvio !== 'all') {
+      baseAnd.push({ puntoEnvio });
+    }
 
     if (startDate || endDate) {
-      matchCondition.referenceDate = {};
+      let fromDate: Date | undefined;
+      let toDate: Date | undefined;
       if (startDate) {
-        // Normalizamos a la zona horaria de Argentina para evitar que pedidos de las
-        // últimas horas del año anterior (por desfase UTC) aparezcan en el reporte actual.
-        matchCondition.referenceDate.$gte = moment.tz(startDate.split('T')[0], argentinaTz).startOf('day').toDate();
+        fromDate = moment.tz(startDate.split('T')[0], argentinaTz).startOf('day').toDate();
       }
       if (endDate) {
-        matchCondition.referenceDate.$lte = moment.tz(endDate.split('T')[0], argentinaTz).endOf('day').toDate();
+        toDate = moment.tz(endDate.split('T')[0], argentinaTz).endOf('day').toDate();
       }
-    }
-    if (puntoEnvio && puntoEnvio !== 'all') {
-      matchCondition.puntoEnvio = puntoEnvio;
-    }
 
-    const pipeline: PipelineStage[] = [];
-
-    pipeline.push({
-      $addFields: {
-        referenceDate: {
-          $ifNull: [
-            {
-              $cond: [
-                { $eq: [{ $type: "$deliveryDay" }, "string"] },
-                { $toDate: "$deliveryDay" },
-                "$deliveryDay"
-              ]
+      baseAnd.push({
+        $or: [
+          {
+            deliveryDay: {
+              ...(fromDate && { $gte: fromDate }),
+              ...(toDate && { $lte: toDate }),
             },
-            {
-              $cond: [
-                { $eq: [{ $type: "$createdAt" }, "string"] },
-                { $toDate: "$createdAt" },
-                "$createdAt"
-              ]
-            }
-          ]
-        }
-      }
-    });
-
-    if (Object.keys(matchCondition).length > 0) {
-      pipeline.push({ $match: matchCondition });
+          },
+          {
+            $and: [
+              { deliveryDay: { $exists: false } },
+              {
+                createdAt: {
+                  ...(fromDate && { $gte: fromDate }),
+                  ...(toDate && { $lte: toDate }),
+                },
+              },
+            ],
+          },
+          {
+            $and: [
+              { deliveryDay: null },
+              {
+                createdAt: {
+                  ...(fromDate && { $gte: fromDate }),
+                  ...(toDate && { $lte: toDate }),
+                },
+              },
+            ],
+          },
+        ],
+      });
     }
+
+    const pipeline: PipelineStage[] = [
+      // 1) Match con campos directos: usa índices
+      { $match: { $and: baseAnd } },
+      // 2) Computamos referenceDate solo sobre el subset filtrado (mucho más chico)
+      {
+        $addFields: {
+          referenceDate: {
+            $ifNull: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$deliveryDay" }, "string"] },
+                  { $toDate: "$deliveryDay" },
+                  "$deliveryDay"
+                ]
+              },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$createdAt" }, "string"] },
+                  { $toDate: "$createdAt" },
+                  "$createdAt"
+                ]
+              }
+            ]
+          }
+        }
+      },
+    ];
 
     pipeline.push(
       { $unwind: '$items' },

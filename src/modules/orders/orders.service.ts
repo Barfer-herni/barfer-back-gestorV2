@@ -977,9 +977,16 @@ export class OrdersService {
     from?: string,
     to?: string,
     page: number = 1,
-    limit: number = 2000
+    limit: number = 50,
+    search?: string,
+    sort?: string,
+    estadosEnvio?: string,
   ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
     try {
+      // Cap del limit para proteger el backend (default 50, máx 500)
+      const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 500));
+      const safePage = Math.max(1, Number(page) || 1);
+
       const filter: any = {
         $and: [
           { orderType: { $ne: 'mayorista' } }
@@ -988,7 +995,6 @@ export class OrdersService {
 
       if (puntoEnvio) {
         filter.puntoEnvio = puntoEnvio;
-        limit = 10000;
       } else {
         filter.$and.push({
           $or: [
@@ -1048,7 +1054,87 @@ export class OrdersService {
           ]
         });
       }
-      const skip = (page - 1) * limit;
+
+      // Filtro por estado de envío (CSV: "pendiente,pidiendo,en-viaje,listo")
+      if (estadosEnvio && estadosEnvio.trim() !== '' && estadosEnvio !== 'all') {
+        const estados = estadosEnvio.split(',').map(e => e.trim()).filter(Boolean);
+        if (estados.length > 0) {
+          // Si "pendiente" está en la lista, también matcheamos órdenes sin estadoEnvio
+          const includesPendiente = estados.includes('pendiente');
+          filter.$and.push({
+            $or: [
+              { estadoEnvio: { $in: estados } },
+              ...(includesPendiente
+                ? [
+                  { estadoEnvio: { $exists: false } },
+                  { estadoEnvio: null },
+                  { estadoEnvio: '' }
+                ]
+                : [])
+            ]
+          });
+        }
+      }
+
+      // Búsqueda por texto sobre campos relevantes
+      if (search && search.trim() !== '') {
+        const term = search.trim();
+        const escaped = this.escapeRegex(term);
+        const phoneNormalized = term.replace(/[\s\-()]/g, '');
+        const escapedPhone = this.escapeRegex(phoneNormalized);
+
+        const orClauses: any[] = [
+          { 'user.name': { $regex: escaped, $options: 'i' } },
+          { 'user.lastName': { $regex: escaped, $options: 'i' } },
+          { 'user.email': { $regex: escaped, $options: 'i' } },
+          { 'user.phoneNumber': { $regex: escapedPhone, $options: 'i' } },
+          { 'address.phone': { $regex: escapedPhone, $options: 'i' } },
+          { 'address.address': { $regex: escaped, $options: 'i' } },
+          { 'address.city': { $regex: escaped, $options: 'i' } },
+          { 'items.name': { $regex: escaped, $options: 'i' } },
+          { 'items.fullName': { $regex: escaped, $options: 'i' } },
+          { notesOwn: { $regex: escaped, $options: 'i' } },
+        ];
+
+        // Si parece un ObjectId, agregar match exacto
+        if (/^[0-9a-fA-F]{24}$/.test(term)) {
+          orClauses.push({ _id: new Types.ObjectId(term) });
+        }
+
+        // Si es numérico, intentar match por total
+        const asNumber = Number(term);
+        if (!Number.isNaN(asNumber)) {
+          orClauses.push({ total: asNumber });
+        }
+
+        filter.$and.push({ $or: orClauses });
+      }
+
+      // Sort: "field.desc" | "field.asc". Mapear ids especiales del front.
+      const sortQuery: Record<string, 1 | -1> = {};
+      if (sort && typeof sort === 'string') {
+        const [rawId, dir] = sort.split('.');
+        const direction: 1 | -1 = dir === 'asc' ? 1 : -1;
+        const fieldMap: Record<string, string> = {
+          'user.name': 'user.name',
+          total: 'total',
+          shippingPrice: 'shippingPrice',
+          createdAt: 'createdAt',
+          deliveryDay: 'deliveryDay',
+          estadoEnvio: 'estadoEnvio',
+          status: 'status',
+          paymentMethod: 'paymentMethod',
+        };
+        const field = fieldMap[rawId];
+        if (field) {
+          sortQuery[field] = direction;
+        }
+      }
+      if (Object.keys(sortQuery).length === 0) {
+        sortQuery.createdAt = -1;
+      }
+
+      const skip = (safePage - 1) * safeLimit;
 
       const tableProjection = {
         _id: 1,
@@ -1091,18 +1177,19 @@ export class OrdersService {
         this.orderModel
           .find(filter)
           .select(tableProjection)
-          .sort({ createdAt: -1 })
+          .sort(sortQuery)
           .skip(skip)
-          .limit(limit)
+          .limit(safeLimit)
+          .lean()
           .exec(),
         this.orderModel.countDocuments(filter)
       ]);
 
       return {
-        orders,
+        orders: orders as unknown as Order[],
         total,
-        page,
-        totalPages: Math.ceil(total / limit)
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit)
       };
     } catch (error) {
       console.error('Error al obtener órdenes express:', error);
@@ -1287,37 +1374,72 @@ export class OrdersService {
     to?: string,
   ): Promise<any> {
     try {
-      const match: any = {
-        $and: [
-          {
-            $or: [
-              { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
-              { 'deliveryArea.sameDayDelivery': true },
-              { puntoEnvio: { $exists: true, $nin: [null, ''] } }
-            ]
-          },
-          { orderType: { $ne: 'mayorista' } }
-        ]
-      };
+      // Filtro inicial por campos DIRECTOS para aprovechar índices
+      // (puntoEnvio, paymentMethod, deliveryArea.sameDayDelivery, deliveryDay, createdAt)
+      const baseAnd: any[] = [
+        {
+          $or: [
+            { paymentMethod: { $in: ['bank-transfer', 'transfer'] } },
+            { 'deliveryArea.sameDayDelivery': true },
+            { puntoEnvio: { $exists: true, $nin: [null, ''] } }
+          ]
+        },
+        { orderType: { $ne: 'mayorista' } }
+      ];
 
-      if (puntoEnvio) match.puntoEnvio = puntoEnvio;
+      if (puntoEnvio) baseAnd.push({ puntoEnvio });
 
-      const matchAnd: any[] = [match];
-
+      // Filtro por fecha usando campos directos (sin $addFields previo)
       if (from || to) {
-        const dateFilter: any = {};
+        let fromDateObj: Date | undefined;
+        let toDateObj: Date | undefined;
         if (from) {
           const [y, m, d] = from.split('-').map(Number);
-          dateFilter.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+          fromDateObj = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
         }
         if (to) {
           const [y, m, d] = to.split('-').map(Number);
-          dateFilter.$lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+          toDateObj = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
         }
-        matchAnd.push({ referenceDate: dateFilter });
+
+        baseAnd.push({
+          $or: [
+            {
+              deliveryDay: {
+                ...(fromDateObj && { $gte: fromDateObj }),
+                ...(toDateObj && { $lte: toDateObj })
+              }
+            },
+            {
+              $and: [
+                { deliveryDay: { $exists: false } },
+                {
+                  createdAt: {
+                    ...(fromDateObj && { $gte: fromDateObj }),
+                    ...(toDateObj && { $lte: toDateObj })
+                  }
+                }
+              ]
+            },
+            {
+              $and: [
+                { deliveryDay: null },
+                {
+                  createdAt: {
+                    ...(fromDateObj && { $gte: fromDateObj }),
+                    ...(toDateObj && { $lte: toDateObj })
+                  }
+                }
+              ]
+            }
+          ]
+        });
       }
 
       const metrics = await this.orderModel.aggregate([
+        // 1) Match con campos directos: usa índices
+        { $match: { $and: baseAnd } },
+        // 2) Después computamos referenceDate sobre el subset ya filtrado
         {
           $addFields: {
             referenceDate: {
@@ -1340,7 +1462,6 @@ export class OrdersService {
             }
           }
         },
-        { $match: { $and: matchAnd } },
         {
           $facet: {
             summary: [
