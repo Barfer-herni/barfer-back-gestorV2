@@ -1111,26 +1111,26 @@ export class OrdersService {
       }
 
       // Sort: "field.desc" | "field.asc". Mapear ids especiales del front.
+      const sortRawId = sort && typeof sort === 'string' ? sort.split('.')[0] : null;
+      const sortDirection: 1 | -1 = sort?.split('.')[1] === 'asc' ? 1 : -1;
+
       const sortQuery: Record<string, 1 | -1> = {};
-      if (sort && typeof sort === 'string') {
-        const [rawId, dir] = sort.split('.');
-        const direction: 1 | -1 = dir === 'asc' ? 1 : -1;
+      if (sortRawId && sortRawId !== 'estadoEnvio') {
         const fieldMap: Record<string, string> = {
           'user.name': 'user.name',
           total: 'total',
           shippingPrice: 'shippingPrice',
           createdAt: 'createdAt',
           deliveryDay: 'deliveryDay',
-          estadoEnvio: 'estadoEnvio',
           status: 'status',
           paymentMethod: 'paymentMethod',
         };
-        const field = fieldMap[rawId];
+        const field = fieldMap[sortRawId];
         if (field) {
-          sortQuery[field] = direction;
+          sortQuery[field] = sortDirection;
         }
       }
-      if (Object.keys(sortQuery).length === 0) {
+      if (Object.keys(sortQuery).length === 0 && sortRawId !== 'estadoEnvio') {
         sortQuery.createdAt = -1;
       }
 
@@ -1173,17 +1173,49 @@ export class OrdersService {
         'deliveryArea.schedule': 1,
       };
 
-      const [orders, total] = await Promise.all([
-        this.orderModel
-          .find(filter)
-          .select(tableProjection)
-          .sort(sortQuery)
-          .skip(skip)
-          .limit(safeLimit)
-          .lean()
-          .exec(),
-        this.orderModel.countDocuments(filter)
-      ]);
+      let orders: any[];
+      let total: number;
+
+      if (sortRawId === 'estadoEnvio') {
+        // Orden personalizado: en-viaje(0) → pidiendo(1) → pendiente(2) → listo(3)
+        [orders, total] = await Promise.all([
+          this.orderModel.aggregate([
+            { $match: filter },
+            {
+              $addFields: {
+                _estadoSortKey: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ['$estadoEnvio', 'en-viaje'] }, then: 0 },
+                      { case: { $eq: ['$estadoEnvio', 'pidiendo'] }, then: 1 },
+                      { case: { $eq: ['$estadoEnvio', 'pendiente'] }, then: 2 },
+                      { case: { $eq: ['$estadoEnvio', 'listo'] }, then: 3 },
+                    ],
+                    default: 2,
+                  },
+                },
+              },
+            },
+            { $sort: { _estadoSortKey: sortDirection } },
+            { $skip: skip },
+            { $limit: safeLimit },
+            { $project: tableProjection },
+          ]).exec(),
+          this.orderModel.countDocuments(filter),
+        ]);
+      } else {
+        [orders, total] = await Promise.all([
+          this.orderModel
+            .find(filter)
+            .select(tableProjection)
+            .sort(sortQuery)
+            .skip(skip)
+            .limit(safeLimit)
+            .lean()
+            .exec(),
+          this.orderModel.countDocuments(filter),
+        ]);
+      }
 
       return {
         orders: orders as unknown as Order[],
