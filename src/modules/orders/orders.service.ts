@@ -182,7 +182,9 @@ export class OrdersService {
         id,
         { $set: updateData },
         { new: true }
-      );
+      )
+        .populate('assignedTo', 'name lastName')
+        .exec();
 
       if (!result) throw new NotFoundException('Order not found');
 
@@ -1768,7 +1770,9 @@ export class OrdersService {
         orderId,
         { $set: { estadoEnvio, updatedAt: new Date() } },
         { new: true }
-      );
+      )
+        .populate('assignedTo', 'name lastName')
+        .exec();
       return { success: true, order: result };
     } catch (error) {
       console.error('Error updating estado envio:', error);
