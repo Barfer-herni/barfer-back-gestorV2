@@ -38,6 +38,9 @@ export class UserGestor extends Document {
 
     @Prop({ required: false, default: null })
     resetPasswordToken?: string;
+
+    @Prop({ type: Boolean, default: false })
+    worksInExpress?: boolean;
 }
 
 export const UserGestorSchema = SchemaFactory.createForClass(UserGestor);

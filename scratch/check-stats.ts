@@ -13,13 +13,9 @@ async function bootstrap() {
   const userCount = await userModel.countDocuments();
   const orderCount = await orderModel.countDocuments();
 
-  console.log('--- Database Stats ---');
-  console.log('Users:', userCount);
-  console.log('Orders:', orderCount);
 
   // Check some order user emails
   const sampleOrders = await orderModel.find().limit(5).select('user.email');
-  console.log('Sample Order User Emails:', sampleOrders.map(o => o.user?.email));
 
   await app.close();
 }

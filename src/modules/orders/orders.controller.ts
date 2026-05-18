@@ -132,6 +132,7 @@ export class OrdersController {
     @Query('search') search?: string,
     @Query('sort') sort?: string,
     @Query('estadosEnvio') estadosEnvio?: string,
+    @Query('assignedTo') assignedTo?: string,
   ) {
     return this.ordersService.getExpressOrders(
       puntoEnvio,
@@ -142,6 +143,7 @@ export class OrdersController {
       search,
       sort,
       estadosEnvio,
+      assignedTo,
     );
   }
 
@@ -154,6 +156,16 @@ export class OrdersController {
     @Query('to') to?: string,
   ) {
     return this.ordersService.getExpressOrdersMetrics(puntoEnvio, from, to);
+  }
+
+  @Patch(':id/express-assign')
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions('stock:edit')
+  assignExpressOrder(
+    @Param('id') id: string,
+    @Body() body: { gestorId?: string | null },
+  ) {
+    return this.ordersService.assignExpressOrder(id, body.gestorId || null);
   }
 
   @Get('priority')

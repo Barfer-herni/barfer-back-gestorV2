@@ -21,6 +21,12 @@ import { Roles } from '../../common/enums/roles.enum';
 export class UsersGestorController {
   constructor(private readonly service: UsersGestorService) { }
 
+  @Get('express-workers')
+  @UseGuards(AuthGuard)
+  async getExpressWorkers() {
+    return this.service.getExpressWorkers();
+  }
+
   @Get()
   @Role(Roles.Admin)
   @UseGuards(AuthGuard, RolesGuard)

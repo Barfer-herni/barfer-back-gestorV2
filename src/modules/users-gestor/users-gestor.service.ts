@@ -297,4 +297,20 @@ export class UsersGestorService {
       throw new UnauthorizedException('Refresh token inválido');
     }
   }
+
+  /**
+   * Obtener usuarios que trabajan en Express
+   */
+  async getExpressWorkers() {
+    const workers = await this.usersGestorModel
+      .find({ worksInExpress: true })
+      .select('_id name lastName')
+      .sort({ name: 1, lastName: 1 });
+
+    return workers.map((worker) => ({
+      _id: worker._id.toString(),
+      name: worker.name,
+      lastName: worker.lastName,
+    }));
+  }
 }

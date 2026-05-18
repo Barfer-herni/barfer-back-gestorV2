@@ -457,13 +457,6 @@ export class AnalyticsService {
     const totalRevenue = data.totalRevenue;
     const customersWithMultipleOrders = data.customersWithMultipleOrders;
 
-    console.log("pepe2")
-    console.log(data);
-    console.log("pepe3")
-    console.log(totalOrders);
-    console.log("pepe4")
-    console.log(totalCustomers);
-    console.log("pepe5")
 
     return {
       averageOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,

@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateUserGestorDto {
   @IsString()
@@ -23,4 +23,8 @@ export class CreateUserGestorDto {
 
   @IsOptional()
   puntoEnvio?: string | string[];
+
+  @IsBoolean()
+  @IsOptional()
+  worksInExpress?: boolean;
 }

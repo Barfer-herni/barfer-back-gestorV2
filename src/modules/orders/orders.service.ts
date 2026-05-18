@@ -30,7 +30,7 @@ import { normalizeDeliveryDay, normalizeScheduleTime, processOrderItems, validat
 import { MayoristasService } from '../mayoristas/mayoristas.service';
 import { PuntoEnvioService } from '../punto-envio/punto-envio.service';
 import { PricesService } from '../prices/prices.service';
-import { Types } from 'mongoose';
+import { Types, isValidObjectId } from 'mongoose';
 import { GetAllOrdersParams } from './interfaces/gett-all-orders-params';
 import { OrderPriority } from '../../schemas/order_priority-schema';
 
@@ -981,6 +981,7 @@ export class OrdersService {
     search?: string,
     sort?: string,
     estadosEnvio?: string,
+    assignedTo?: string,
   ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
     try {
       // Cap del limit para proteger el backend (default 50, máx 500)
@@ -1076,6 +1077,26 @@ export class OrdersService {
         }
       }
 
+      // Filtro por asignación de usuario
+      if (assignedTo && assignedTo.trim() !== '') {
+        if (assignedTo === 'unassigned') {
+          filter.$and.push({
+            $or: [
+              { assignedTo: { $exists: false } },
+              { assignedTo: null }
+            ]
+          });
+        } else if (assignedTo === 'assigned') {
+          filter.$and.push({
+            assignedTo: { $exists: true, $ne: null }
+          });
+        } else if (/^[0-9a-fA-F]{24}$/.test(assignedTo)) {
+          filter.$and.push({
+            assignedTo: new Types.ObjectId(assignedTo)
+          });
+        }
+      }
+
       // Búsqueda por texto sobre campos relevantes
       if (search && search.trim() !== '') {
         const term = search.trim();
@@ -1153,6 +1174,7 @@ export class OrdersService {
         notes: 1,
         notesOwn: 1,
         orderType: 1,
+        assignedTo: 1,
         'user.name': 1,
         'user.lastName': 1,
         'user.email': 1,
@@ -1199,6 +1221,30 @@ export class OrdersService {
             { $sort: { _estadoSortKey: sortDirection } },
             { $skip: skip },
             { $limit: safeLimit },
+            {
+              $lookup: {
+                from: 'users_gestor',
+                localField: 'assignedTo',
+                foreignField: '_id',
+                as: 'assignedToData',
+              },
+            },
+            {
+              $addFields: {
+                assignedTo: {
+                  $cond: {
+                    if: { $gt: [{ $size: '$assignedToData' }, 0] },
+                    then: {
+                      _id: { $arrayElemAt: ['$assignedToData._id', 0] },
+                      name: { $arrayElemAt: ['$assignedToData.name', 0] },
+                      lastName: { $arrayElemAt: ['$assignedToData.lastName', 0] },
+                    },
+                    else: null,
+                  },
+                },
+              },
+            },
+            { $unset: 'assignedToData' },
             { $project: tableProjection },
           ]).exec(),
           this.orderModel.countDocuments(filter),
@@ -1211,6 +1257,7 @@ export class OrdersService {
             .sort(sortQuery)
             .skip(skip)
             .limit(safeLimit)
+            .populate('assignedTo', 'name lastName')
             .lean()
             .exec(),
           this.orderModel.countDocuments(filter),
@@ -1229,6 +1276,40 @@ export class OrdersService {
     }
   }
 
+  async assignExpressOrder(orderId: string, gestorId: string | null) {
+    try {
+      if (!isValidObjectId(orderId)) {
+        throw new BadRequestException('ID de orden inválido');
+      }
+
+      if (gestorId && !isValidObjectId(gestorId)) {
+        throw new BadRequestException('ID de gestor inválido');
+      }
+
+      const updateData: any = {
+        assignedTo: gestorId ? new Types.ObjectId(gestorId) : null,
+      };
+
+      const order = await this.orderModel
+        .findByIdAndUpdate(orderId, { $set: updateData }, { new: true })
+        .populate('assignedTo', 'name lastName')
+        .lean()
+        .exec();
+
+      if (!order) {
+        throw new NotFoundException('Orden no encontrada');
+      }
+
+      return order;
+    } catch (error) {
+      console.error('Error al asignar orden express:', error);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Error al asignar la orden');
+    }
+  }
+
   // async getExpressOrders(
   //   puntoEnvio?: string,
   //   from?: string,
@@ -1238,11 +1319,6 @@ export class OrdersService {
   // ): Promise<{ orders: Order[]; total: number; page: number; totalPages: number }> {
   //   try {
 
-  //     console.log('puntoEnvio', puntoEnvio);
-  //     console.log('from', from);
-  //     console.log('to', to);
-  //     console.log('page', page);
-  //     console.log('limit', limit);
 
   //     const filter: any = {
   //       $and: [

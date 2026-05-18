@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { AddressDto } from '../modules/address/dto/address.dto';
 import { UserDto } from '../modules/users/dto/user.dto';
 import { ProductDto } from '../modules/products/dto/product.dto';
@@ -120,6 +121,13 @@ export class Order {
     required: false,
   })
   punto_de_venta?: string;
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'UserGestor',
+    required: false,
+  })
+  assignedTo?: Types.ObjectId;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
@@ -146,3 +154,7 @@ OrderSchema.index({ paymentMethod: 1, createdAt: -1 });
 OrderSchema.index({ 'deliveryArea.sameDayDelivery': 1, createdAt: -1 });
 // Índice compuesto para getAllOrders (excluye express por deliveryArea + ordenamiento)
 OrderSchema.index({ 'deliveryArea.sameDayDelivery': 1, deliveryDay: -1, createdAt: -1 });
+// Índice para filtrar por assignedTo
+OrderSchema.index({ assignedTo: 1 });
+// Índice compuesto para filtrar express por puntoEnvio + assignedTo
+OrderSchema.index({ puntoEnvio: 1, assignedTo: 1, deliveryDay: -1 });
