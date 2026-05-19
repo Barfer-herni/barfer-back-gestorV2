@@ -62,6 +62,8 @@ export class PuntoEnvioService {
         _id: doc._id.toString(),
         nombre: doc.nombre || '',
         cutoffTime: doc.cutoffTime,
+        weeklySchedule: doc.weeklySchedule,
+        exceptions: doc.exceptions,
         createdAt: safeISOString(doc.createdAt),
         updatedAt: safeISOString(doc.updatedAt),
       }));
@@ -105,6 +107,8 @@ export class PuntoEnvioService {
         _id: puntoEnvio._id.toString(),
         nombre: puntoEnvio.nombre,
         cutoffTime: puntoEnvio.cutoffTime,
+        weeklySchedule: puntoEnvio.weeklySchedule,
+        exceptions: puntoEnvio.exceptions,
         createdAt: safeISOString(puntoEnvio.createdAt),
         updatedAt: safeISOString(puntoEnvio.updatedAt),
       },
@@ -130,6 +134,8 @@ export class PuntoEnvioService {
         _id: puntoEnvio._id.toString(),
         nombre: puntoEnvio.nombre,
         cutoffTime: puntoEnvio.cutoffTime,
+        weeklySchedule: puntoEnvio.weeklySchedule,
+        exceptions: puntoEnvio.exceptions,
         createdAt: safeISOString(puntoEnvio.createdAt),
         updatedAt: safeISOString(puntoEnvio.updatedAt),
       },
@@ -160,7 +166,9 @@ export class PuntoEnvioService {
       const now = new Date();
       const puntoEnvioDoc = {
         nombre: data.nombre,
-        cutoffTime: data.cutoffTime,
+        cutoffTime: data.cutoffTime || "15:00",
+        weeklySchedule: data.weeklySchedule || {},
+        exceptions: data.exceptions || [],
         createdAt: now,
         updatedAt: now,
       };
@@ -169,6 +177,8 @@ export class PuntoEnvioService {
         _id: result._id.toString(),
         nombre: puntoEnvioDoc.nombre,
         cutoffTime: puntoEnvioDoc.cutoffTime,
+        weeklySchedule: puntoEnvioDoc.weeklySchedule as any,
+        exceptions: puntoEnvioDoc.exceptions as any,
         createdAt: puntoEnvioDoc.createdAt.toISOString(),
         updatedAt: puntoEnvioDoc.updatedAt.toISOString(),
       };
@@ -225,6 +235,8 @@ export class PuntoEnvioService {
         _id: updated._id.toString(),
         nombre: updated.nombre,
         cutoffTime: updated.cutoffTime,
+        weeklySchedule: updated.weeklySchedule,
+        exceptions: updated.exceptions,
         createdAt: safeISOString(updated.createdAt),
         updatedAt: safeISOString(updated.updatedAt),
       },
@@ -262,10 +274,13 @@ export class PuntoEnvioService {
     try {
       const puntoEnvio = await this.puntoEnvioModel.findOne({ nombre: puntoEnvioName }).exec();
 
-      if (!puntoEnvio || !puntoEnvio.cutoffTime) return deliveryDate;
+      if (!puntoEnvio) return deliveryDate;
 
-      const cutoffTime = puntoEnvio.cutoffTime; // Format: "HH:mm"
-      const [cutoffHour, cutoffMinute] = cutoffTime.split(':').map(Number);
+      const deliveryDateZero = new Date(deliveryDate);
+      deliveryDateZero.setHours(0, 0, 0, 0);
+
+      const todayArg = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+      todayArg.setHours(0, 0, 0, 0);
 
       const now = new Date();
       const formatter = new Intl.DateTimeFormat('en-US', {
@@ -279,31 +294,76 @@ export class PuntoEnvioService {
       const hourPart = parts.find(p => p.type === 'hour')?.value;
       const minutePart = parts.find(p => p.type === 'minute')?.value;
 
-      if (!hourPart || !minutePart) return deliveryDate;
+      const currentHour = hourPart ? parseInt(hourPart) : 0;
+      const currentMinute = minutePart ? parseInt(minutePart) : 0;
 
-      const currentHour = parseInt(hourPart);
-      const currentMinute = parseInt(minutePart);
+      const getConfigForDate = (date: Date) => {
+        const dateStr = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+        
+        // 1. Verificar excepciones (feriados)
+        const exceptions = puntoEnvio.exceptions || [];
+        const exception = exceptions.find((e: any) => e.date === dateStr);
+        if (exception) {
+          return {
+            isOpen: exception.isOpen,
+            cutoffTime: exception.cutoffTime || puntoEnvio.cutoffTime || "15:00"
+          };
+        }
 
-      const isAfterCutoff = currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= cutoffMinute);
-
-      if (isAfterCutoff) {
-        const todayArg = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-        todayArg.setHours(0, 0, 0, 0);
-
-        const deliveryDateZero = new Date(deliveryDate);
-        deliveryDateZero.setHours(0, 0, 0, 0);
-
-        if (deliveryDateZero.getTime() <= todayArg.getTime()) {
-          const nextDay = new Date(deliveryDateZero);
-          nextDay.setDate(nextDay.getDate() + 1);
-
-          if (nextDay.getDay() === 0) {
-            nextDay.setDate(nextDay.getDate() + 1);
+        // 2. Verificar horario semanal
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday...
+        const weekly = puntoEnvio.weeklySchedule;
+        if (weekly && Object.keys(weekly).length > 0) {
+          switch (dayOfWeek) {
+            case 0: return weekly.sunday;
+            case 1: return weekly.monday;
+            case 2: return weekly.tuesday;
+            case 3: return weekly.wednesday;
+            case 4: return weekly.thursday;
+            case 5: return weekly.friday;
+            case 6: return weekly.saturday;
           }
-          return nextDay;
+        }
+        
+        // Backward compatibility si no hay weeklySchedule
+        return {
+          isOpen: dayOfWeek !== 0, // Cerrado los domingos por defecto
+          cutoffTime: puntoEnvio.cutoffTime || "15:00"
+        };
+      };
+
+      let targetDate = new Date(deliveryDateZero);
+      let iterations = 0;
+
+      while (iterations < 30) {
+        iterations++;
+        const config = getConfigForDate(targetDate);
+        let skipToNextDay = false;
+
+        if (!config.isOpen) {
+          skipToNextDay = true;
+        } else {
+          // Solo si el día objetivo es hoy o está en el pasado (según Argentina)
+          // aplicamos la validación de la hora de corte actual.
+          if (targetDate.getTime() <= todayArg.getTime()) {
+            const cutoffStr = config.cutoffTime || "15:00";
+            const [cutoffHour, cutoffMinute] = cutoffStr.split(':').map(Number);
+            const isAfterCutoff = currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= cutoffMinute);
+            
+            if (isAfterCutoff) {
+              skipToNextDay = true;
+            }
+          }
+        }
+
+        if (skipToNextDay) {
+          targetDate.setDate(targetDate.getDate() + 1);
+        } else {
+          break; // Encontramos un día válido
         }
       }
-      return deliveryDate;
+
+      return targetDate;
     } catch (error) {
       console.error('Error adjusting delivery date by cutoff:', error);
       return deliveryDate;
