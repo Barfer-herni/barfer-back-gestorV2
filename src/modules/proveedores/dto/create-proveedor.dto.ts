@@ -23,6 +23,10 @@ export class CreateProveedorDto {
 
     @IsOptional()
     @IsString()
+    notas?: string;
+
+    @IsOptional()
+    @IsString()
     categoriaId?: string;
 
     @IsOptional()

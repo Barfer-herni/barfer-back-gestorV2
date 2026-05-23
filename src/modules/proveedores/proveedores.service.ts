@@ -60,6 +60,7 @@ export class ProveedoresService {
             detalle: p.detalle,
             telefono: p.telefono,
             personaContacto: p.personaContacto,
+            notas: p.notas || null,
             registro: p.registro,
             categoriaId: p.categoriaId ? p.categoriaId.toString() : null,
             metodoPagoId: p.metodoPagoId ? p.metodoPagoId.toString() : null,
@@ -159,6 +160,7 @@ export class ProveedoresService {
                 detalle: data.detalle,
                 telefono: data.telefono,
                 personaContacto: data.personaContacto,
+                notas: data.notas || null,
                 registro: data.registro,
                 isActive: data.isActive !== undefined ? data.isActive : true,
                 createdAt: new Date(),
@@ -209,6 +211,7 @@ export class ProveedoresService {
             if (data.detalle !== undefined) updateData.detalle = data.detalle;
             if (data.telefono !== undefined) updateData.telefono = data.telefono;
             if (data.personaContacto !== undefined) updateData.personaContacto = data.personaContacto;
+            if (data.notas !== undefined) updateData.notas = data.notas;
             if (data.registro !== undefined) updateData.registro = data.registro;
             if (data.isActive !== undefined) updateData.isActive = data.isActive;
             if (data.categoriaId !== undefined) updateData.categoriaId = data.categoriaId ? new Types.ObjectId(data.categoriaId) : null;

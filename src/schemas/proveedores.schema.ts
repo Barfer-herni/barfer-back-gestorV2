@@ -24,6 +24,9 @@ export class Proveedores extends Document {
     personaContacto: string;
 
     @Prop({ type: String, default: null })
+    notas?: string | null;
+
+    @Prop({ type: String, default: null })
     categoriaId?: string | null;
 
     @Prop({ type: String, default: null })

@@ -4,6 +4,7 @@ export interface ProveedorData {
     detalle: string;
     telefono: string;
     personaContacto: string;
+    notas?: string | null;
     registro: 'BLANCO' | 'NEGRO';
     categoriaId?: string | null;
     metodoPagoId?: string | null;

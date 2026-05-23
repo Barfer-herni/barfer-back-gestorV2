@@ -85,7 +85,19 @@ export class CategoriasGestorService {
             });
 
             if (existingCategoria) {
-                throw new ConflictException(`Ya existe una categoría con ese nombre: "${existingCategoria.nombre}"`);
+                if (!existingCategoria.isActive) {
+                    throw new ConflictException({
+                        message: `La categoría "${existingCategoria.nombre}" ya existe pero está desactivada`,
+                        code: 'CATEGORY_INACTIVE',
+                        categoriaId: existingCategoria._id.toString(),
+                        nombre: existingCategoria.nombre,
+                    });
+                }
+                throw new ConflictException({
+                    message: `La categoría "${existingCategoria.nombre}" ya existe y está activa`,
+                    code: 'CATEGORY_EXISTS',
+                    nombre: existingCategoria.nombre,
+                });
             }
 
             const newCategoria = new this.categoriaGestorModel({
@@ -303,6 +315,31 @@ export class CategoriasGestorService {
             };
         } catch (error) {
             throw new InternalServerErrorException('Error al obtener estadísticas de categorías');
+        }
+    }
+
+
+    async findAllUnactive() {
+        try {
+            const categorias = await this.categoriaGestorModel.find({ isActive: false }).exec();
+            return {
+                categorias,
+                total: categorias.length,
+            };
+        } catch (error) {
+            throw new InternalServerErrorException('Error al obtener las categorías inactivas');
+        }
+    }
+
+    async activate(id: string) {
+        try {
+            const categoria = await this.categoriaGestorModel.findByIdAndUpdate(id, { isActive: true }, { new: true }).exec();
+            return {
+                categoria,
+                message: 'Categoría activada exitosamente',
+            };
+        } catch (error) {
+            throw new InternalServerErrorException('Error al activar la categoría');
         }
     }
 }

@@ -334,9 +334,10 @@ export class SalidasService {
 
             // Filtro por categoríaId específica
             if (filters.categoriaId) {
-                const categoria = await this.categoriasModel.findById(filters.categoriaId).exec();
-                if (categoria) {
-                    matchConditions['categoria.nombre'] = (categoria as any).nombre;
+                const catIds = filters.categoriaId.split(',');
+                const categorias = await this.categoriasModel.find({ _id: { $in: catIds } }).exec();
+                if (categorias.length > 0) {
+                    matchConditions['categoria.nombre'] = { $in: categorias.map((c: any) => c.nombre) };
                 } else {
                     return { success: true, salidas: [], total: 0, pageCount: 0 };
                 }
@@ -570,7 +571,7 @@ export class SalidasService {
                 { $addFields: { categoria: { $arrayElemAt: ['$categoria', 0] } } },
                 {
                     $group: {
-                        _id: '$categoriaId',
+                        _id: '$categoriaIdObj',
                         categoriaNombre: { $first: '$categoria.nombre' },
                         totalMonto: { $sum: '$monto' },
                         cantidad: { $sum: 1 },

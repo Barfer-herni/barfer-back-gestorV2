@@ -68,6 +68,13 @@ export class CategoriasGestorController {
         return this.categoriasGestorService.findAllActive();
     }
 
+    @Get('unactive')
+    @Auth(Roles.User)
+    @Permissions('balance:view')
+    findAllUnactive() {
+        return this.categoriasGestorService.findAllUnactive();
+    }
+
     @Get(':id')
     @Auth(Roles.User)
     @Permissions('balance:view')
@@ -97,5 +104,13 @@ export class CategoriasGestorController {
     @Permissions('balance:delete')
     removePermanently(@Param('id') id: string) {
         return this.categoriasGestorService.removePermanently(id);
+    }
+
+    //api para activar o desactivar una categoría
+    @Patch(':id/activate')
+    @Auth(Roles.User)
+    @Permissions('balance:edit')
+    activate(@Param('id') id: string) {
+        return this.categoriasGestorService.activate(id);
     }
 }
