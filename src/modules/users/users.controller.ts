@@ -56,7 +56,7 @@ export class UsersController {
 
   @Get('admin/blacklisted')
   @Auth(Roles.User)
-  @Permissions('table:view')
+  @Permissions('blacklist:view')
   getBlacklisted(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -71,7 +71,7 @@ export class UsersController {
 
   @Patch('admin/blacklist')
   @Auth(Roles.User)
-  @Permissions('table:edit')
+  @Permissions('blacklist:edit')
   setBlacklisted(@Body() body: SetBlackListDto) {
     return this.userService.setBlackListed({
       email: body.email,
