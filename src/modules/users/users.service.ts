@@ -1,16 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../../schemas/user.schema';
 import { UserDto } from './dto/user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Order } from '../../schemas/order.schema';
+import { Address } from '../../schemas/address.schema';
+import {
+  AddressLike,
+  collectAddressFingerprints,
+  isAddressBlacklisted,
+} from '../../common/utils/address-blacklist.util';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Order.name) private readonly orderModel: Model<Order>,
+    @InjectModel(Address.name) private readonly addressModel: Model<Address>,
   ) { }
 
   async create(user: UserDto) {
@@ -51,6 +58,165 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
     return user;
+  }
+
+  private emailRegex(email: string) {
+    return new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  }
+
+  private async collectAddressKeysForEmail(
+    email: string,
+    extraAddress?: AddressLike,
+  ): Promise<string[]> {
+    const keys = new Set<string>();
+
+    const savedAddresses = await this.addressModel
+      .find({ email: this.emailRegex(email) })
+      .lean()
+      .exec();
+
+    for (const addr of savedAddresses) {
+      collectAddressFingerprints(addr).forEach((k) => keys.add(k));
+    }
+
+    if (extraAddress) {
+      collectAddressFingerprints(extraAddress).forEach((k) => keys.add(k));
+    }
+
+    return [...keys];
+  }
+
+  async setBlackListed(params: {
+    email: string;
+    blackListed: boolean;
+    orderAddress?: AddressLike;
+  }) {
+    const trimmed = params.email?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Email is required');
+    }
+
+    const existing = await this.userModel
+      .findOne({ email: this.emailRegex(trimmed) })
+      .exec();
+
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+
+    const update: Partial<User> = { blackListed: params.blackListed };
+
+    if (params.blackListed) {
+      update.blackListedAddressKeys = await this.collectAddressKeysForEmail(
+        trimmed,
+        params.orderAddress,
+      );
+    } else {
+      update.blackListedAddressKeys = [];
+    }
+
+    const user = await this.userModel
+      .findByIdAndUpdate(existing._id, update, { new: true })
+      .select('-password')
+      .exec();
+
+    return user;
+  }
+
+  async findBlackListed(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 50));
+    const skip = (page - 1) * limit;
+    const search = params?.search?.trim();
+
+    const filter: Record<string, unknown> = { blackListed: true };
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filter.$or = [
+        { email: regex },
+        { name: regex },
+        { lastName: regex },
+        { phoneNumber: regex },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .select('-password')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    const usersWithAddresses = await Promise.all(
+      users.map(async (user) => {
+        const addresses = await this.addressModel
+          .find({ email: this.emailRegex(user.email) })
+          .select('address city floorNumber departmentNumber phone')
+          .lean()
+          .exec();
+        const plain = user.toObject();
+        return { ...plain, addresses };
+      }),
+    );
+
+    return {
+      users: usersWithAddresses,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
+  }
+
+  /** Todas las huellas de dirección de usuarios en lista negra */
+  async getBlacklistedAddressKeySet(): Promise<Set<string>> {
+    const blacklistedUsers = await this.userModel
+      .find({ blackListed: true })
+      .select('email blackListedAddressKeys')
+      .lean()
+      .exec();
+
+    const keys = new Set<string>();
+
+    for (const user of blacklistedUsers) {
+      (user.blackListedAddressKeys || []).forEach((k) => keys.add(k));
+
+      const addresses = await this.addressModel
+        .find({ email: this.emailRegex(user.email) })
+        .lean()
+        .exec();
+
+      for (const addr of addresses) {
+        collectAddressFingerprints(addr).forEach((k) => keys.add(k));
+      }
+    }
+
+    return keys;
+  }
+
+  isOrderAddressBlacklisted(
+    orderAddress: AddressLike | null | undefined,
+    blacklistedKeys: Set<string>,
+  ): boolean {
+    return isAddressBlacklisted(orderAddress, blacklistedKeys);
+  }
+
+  async getBlacklistedEmailSet(): Promise<Set<string>> {
+    const users = await this.userModel
+      .find({ blackListed: true })
+      .select('email')
+      .lean()
+      .exec();
+    return new Set(users.map((u) => u.email.toLowerCase()));
   }
 
 

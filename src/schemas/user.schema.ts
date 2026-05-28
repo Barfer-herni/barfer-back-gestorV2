@@ -58,6 +58,20 @@ export class User {
     default: [],
   })
   permissions: string[];
+
+  @Prop({
+    type: Boolean,
+    default: false,
+  })
+  blackListed: boolean;
+
+  /** Huellas de dirección vinculadas al usuario en lista negra */
+  @Prop({
+    type: [String],
+    default: [],
+  })
+  blackListedAddressKeys: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ blackListed: 1 });

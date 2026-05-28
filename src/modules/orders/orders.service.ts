@@ -477,6 +477,46 @@ export class OrdersService {
   }
 
 
+  private async enrichOrdersWithBlackList<
+    T extends { user?: { email?: string }; address?: unknown },
+  >(orders: T[]): Promise<
+    (T & { userBlackListed: boolean; clientBlackListed: boolean })[]
+  > {
+    const [blacklistedAddressKeys, blacklistedEmails] = await Promise.all([
+      this.usersService.getBlacklistedAddressKeySet(),
+      this.usersService.getBlacklistedEmailSet(),
+    ]);
+
+    return orders.map((order) => {
+      const doc = order as T & { toObject?: () => T };
+      const plain = typeof doc.toObject === 'function' ? doc.toObject() : order;
+      const address = plain.address as
+        | {
+            address?: string;
+            city?: string;
+            floorNumber?: string;
+            departmentNumber?: string;
+            betweenStreets?: string;
+          }
+        | undefined;
+      const email = plain.user?.email?.trim().toLowerCase();
+
+      const addressBlacklisted = this.usersService.isOrderAddressBlacklisted(
+        address,
+        blacklistedAddressKeys,
+      );
+      const clientBlacklisted = Boolean(
+        email && blacklistedEmails.has(email),
+      );
+
+      return {
+        ...plain,
+        userBlackListed: addressBlacklisted || clientBlacklisted,
+        clientBlackListed: clientBlacklisted,
+      };
+    });
+  }
+
   async getAllOrders({
     search = '',
     sorting = [{ id: 'createdAt', desc: true }],
@@ -701,7 +741,8 @@ export class OrdersService {
       }
 
       const orders = await query.exec();
-      return { orders, total };
+      const ordersWithBlacklist = await this.enrichOrdersWithBlackList(orders);
+      return { orders: ordersWithBlacklist as Order[], total };
     } catch (error) {
       console.error('Error in getAllOrders:', {
         error: error instanceof Error ? error.message : error,

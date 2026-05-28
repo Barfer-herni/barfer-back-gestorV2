@@ -4,6 +4,7 @@ import { UsersService } from './users.service';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { UsersController } from './users.controller';
 import { Order, OrderSchema } from '../../schemas/order.schema';
+import { Address, AddressSchema } from '../../schemas/address.schema';
 
 @Module({
   controllers: [UsersController],
@@ -18,6 +19,10 @@ import { Order, OrderSchema } from '../../schemas/order.schema';
       {
         name: Order.name,
         schema: OrderSchema,
+      },
+      {
+        name: Address.name,
+        schema: AddressSchema,
       },
     ]),
   ],

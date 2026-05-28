@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { Roles } from '../../common/enums/roles.enum';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SetBlackListDto } from './dto/set-blacklist.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -50,6 +52,32 @@ export class UsersController {
   @Auth(Roles.Admin)
   getAnalytics() {
     return this.userService.getClientAnalytics();
+  }
+
+  @Get('admin/blacklisted')
+  @Auth(Roles.User)
+  @Permissions('table:view')
+  getBlacklisted(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.userService.findBlackListed({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+      search,
+    });
+  }
+
+  @Patch('admin/blacklist')
+  @Auth(Roles.User)
+  @Permissions('table:edit')
+  setBlacklisted(@Body() body: SetBlackListDto) {
+    return this.userService.setBlackListed({
+      email: body.email,
+      blackListed: body.blackListed,
+      orderAddress: body.orderAddress,
+    });
   }
 
   @Get('clients-for-whatsapp')
